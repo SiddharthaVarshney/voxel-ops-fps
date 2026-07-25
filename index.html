@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VOXEL OPS — Browser FPS</title>
+<meta name="description" content="A pixelated 3D wave-survival first-person shooter, playable in the browser.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%23ff3d3d%22/><text x=%2250%22 y=%2270%22 font-size=%2260%22 font-family=%22monospace%22 font-weight=%22bold%22 fill=%22white%22 text-anchor=%22middle%22>V</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+
+<div id="game-root">
+  <canvas id="game-canvas"></canvas>
+</div>
+
+<!-- ============ MAIN MENU ============ -->
+<section id="screen-menu" class="screen">
+  <div class="menu-panel">
+    <h1 class="title">VOXEL<span class="title-accent">OPS</span></h1>
+    <p class="subtitle">pixelated 3D wave-survival shooter</p>
+
+    <div class="menu-actions">
+      <button id="btn-play" class="btn btn-primary">Start Mission</button>
+      <button id="btn-scores" class="btn">High Scores</button>
+      <button id="btn-howto" class="btn">Controls</button>
+    </div>
+
+    <p class="menu-footnote">Best played on desktop with mouse + keyboard.</p>
+  </div>
+</section>
+
+<!-- ============ HOW TO PLAY ============ -->
+<section id="screen-howto" class="screen hidden">
+  <div class="menu-panel">
+    <h2 class="panel-title">Controls</h2>
+    <ul class="control-list">
+      <li><span class="key">W A S D</span> Move</li>
+      <li><span class="key">MOUSE</span> Look</li>
+      <li><span class="key">LEFT CLICK</span> Fire</li>
+      <li><span class="key">R</span> Reload</li>
+      <li><span class="key">1 2 3</span> Switch weapon</li>
+      <li><span class="key">SHIFT</span> Sprint</li>
+      <li><span class="key">SPACE</span> Jump</li>
+      <li><span class="key">ESC</span> Pause</li>
+    </ul>
+    <p class="panel-copy">Survive escalating waves of hostiles. Kills and wave depth score points. Click Start, then click the screen once to lock your mouse and begin.</p>
+    <button class="btn btn-primary back-btn" data-back="menu">Back</button>
+  </div>
+</section>
+
+<!-- ============ HIGH SCORES ============ -->
+<section id="screen-scores" class="screen hidden">
+  <div class="menu-panel">
+    <h2 class="panel-title">High Scores</h2>
+    <ol id="score-list" class="score-list">
+      <li class="score-empty">No runs yet — go make history.</li>
+    </ol>
+    <button class="btn btn-primary back-btn" data-back="menu">Back</button>
+  </div>
+</section>
+
+<!-- ============ PAUSE ============ -->
+<section id="screen-pause" class="screen hidden">
+  <div class="menu-panel">
+    <h2 class="panel-title">Paused</h2>
+    <div class="menu-actions">
+      <button id="btn-resume" class="btn btn-primary">Resume</button>
+      <button id="btn-quit" class="btn">Quit to Menu</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ GAME OVER ============ -->
+<section id="screen-gameover" class="screen hidden">
+  <div class="menu-panel">
+    <h2 class="panel-title title-danger">Mission Failed</h2>
+    <div class="results">
+      <div class="result-row"><span>Wave reached</span><b id="result-wave">0</b></div>
+      <div class="result-row"><span>Kills</span><b id="result-kills">0</b></div>
+      <div class="result-row"><span>Score</span><b id="result-score">0</b></div>
+    </div>
+    <div id="new-highscore-note" class="new-highscore hidden">NEW HIGH SCORE</div>
+    <div class="menu-actions">
+      <button id="btn-retry" class="btn btn-primary">Retry</button>
+      <button id="btn-gameover-menu" class="btn">Main Menu</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ HUD (during play) ============ -->
+<div id="hud" class="hidden">
+  <div class="hud-top-left">
+    <div class="hud-wave">WAVE <span id="hud-wave-num">1</span></div>
+    <div class="hud-score">SCORE <span id="hud-score-num">0</span></div>
+  </div>
+
+  <div id="hitmarker" class="hitmarker"></div>
+  <div class="crosshair">
+    <span></span><span></span><span></span><span></span>
+  </div>
+
+  <div id="damage-flash" class="damage-flash"></div>
+
+  <div class="hud-bottom">
+    <div class="hud-health">
+      <div class="hud-label">HEALTH</div>
+      <div class="bar health-bar"><div id="health-fill" class="bar-fill health-fill"></div></div>
+    </div>
+    <div class="hud-weapon">
+      <div id="weapon-name" class="weapon-name">PISTOL</div>
+      <div id="weapon-ammo" class="weapon-ammo">— / —</div>
+    </div>
+  </div>
+
+  <div id="reload-indicator" class="reload-indicator hidden">RELOADING…</div>
+  <div id="lock-hint" class="lock-hint">Click to aim</div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
