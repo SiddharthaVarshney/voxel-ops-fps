@@ -32,8 +32,9 @@ export function updateHealth(health, maxHealth) {
 
 export function updateWeapon(name, ammoInMag, ammoReserve) {
   el.weaponName.textContent = name;
+  const magText = ammoInMag === Infinity ? "∞" : ammoInMag;
   const reserveText = ammoReserve === Infinity ? "∞" : ammoReserve;
-  el.weaponAmmo.textContent = `${ammoInMag} / ${reserveText}`;
+  el.weaponAmmo.textContent = `${magText} / ${reserveText}`;
 }
 
 export function setReloading(isReloading) {

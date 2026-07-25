@@ -5,7 +5,7 @@ import {
   buildShieldTrooper,
   buildHeavyGunner,
   buildFlamethrowerTrooper,
-  buildSpriteBillboard,
+  buildDirectionalBillboard,
   attachEnemyGun,
   rand,
   distance2D,
@@ -71,9 +71,15 @@ export class Enemy {
       this.group.position.copy(position);
       this.group.position.y = DRONE_HEIGHT;
     } else if (type === "mutant_brute") {
-      const built = buildSpriteBillboard("assets/sprites/brute_commando.png", 3.2);
+      const built = buildDirectionalBillboard({
+        front: "assets/sprites/brute_commando_front.png",
+        right: "assets/sprites/brute_commando_right.png",
+        back: "assets/sprites/brute_commando_back.png",
+        left: "assets/sprites/brute_commando_left.png",
+      }, 3.2);
       this.group = built.group;
       this.sprite = built.sprite;
+      this.updateSpriteFacing = built.updateFacing;
       this.group.position.copy(position);
     } else if (type === "shield_trooper") {
       const built = buildShieldTrooper();
@@ -192,9 +198,11 @@ export class Enemy {
   _updateMelee(dt, playerPos, colliders, callbacks) {
     const dist = distance2D(this.position, playerPos);
     const reach = this.type === "mutant_brute" ? MELEE_ATTACK_RANGE + 0.5 : MELEE_ATTACK_RANGE;
+    this._faceTarget(playerPos, 999);
+    if (this.updateSpriteFacing) this.updateSpriteFacing(this.facingAngle, playerPos, this.position);
+
     if (dist > reach) {
       this._moveToward(playerPos, this.speed, dt);
-      this._faceTarget(playerPos, 999);
       this._animateWalk(dt);
       for (const c of colliders) resolveCircleBoxCollision(this.position, ENEMY_RADIUS, c.box);
     } else {
@@ -367,6 +375,7 @@ export class EnemyManager {
     this.arenaHalf = 21;
     this.tracers = [];
     this.pendingSpawns = []; // telegraphed spawns not yet materialized
+    this.difficultyMult = { health: 1, damage: 1, spawnRate: 1 };
   }
 
   reset() {
@@ -398,9 +407,9 @@ export class EnemyManager {
 
   _pickType() {
     const roll = Math.random();
-    if (this.wave >= 6 && roll < 0.12) return "mutant_brute";
-    if (this.wave >= 5 && roll < 0.28) return "flamethrower";
-    if (this.wave >= 4 && roll < 0.45) return "drone";
+    if (this.wave >= 4 && roll < 0.18) return "mutant_brute";
+    if (this.wave >= 4 && roll < 0.34) return "flamethrower";
+    if (this.wave >= 3 && roll < 0.5) return "drone";
     if (this.wave >= 3 && roll < 0.6) return "heavy_gunner";
     if (this.wave >= 3 && roll < 0.75) return "shield_trooper";
     if (this.wave >= 2 && roll < 0.9) return "rifleman";
@@ -409,22 +418,35 @@ export class EnemyManager {
 
   _statsFor(type) {
     const w = this.wave;
+    const dm = this.difficultyMult;
+    let base;
     switch (type) {
       case "mutant_brute":
-        return { health: 140 + w * 10, speed: clamp(1.3 + w * 0.05, 1.3, 2.4), damage: 16 + Math.floor(w / 2) };
+        base = { health: 140 + w * 10, speed: clamp(1.3 + w * 0.05, 1.3, 2.4), damage: 16 + Math.floor(w / 2) };
+        break;
       case "shield_trooper":
-        return { health: 55 + w * 6, speed: clamp(1.4 + w * 0.05, 1.4, 2.6), damage: 9 + Math.floor(w / 2) };
+        base = { health: 55 + w * 6, speed: clamp(1.4 + w * 0.05, 1.4, 2.6), damage: 9 + Math.floor(w / 2) };
+        break;
       case "heavy_gunner":
-        return { health: 60 + w * 6, speed: clamp(1.3 + w * 0.05, 1.3, 2.2), damage: 7 + Math.floor(w / 2) };
+        base = { health: 60 + w * 6, speed: clamp(1.3 + w * 0.05, 1.3, 2.2), damage: 7 + Math.floor(w / 2) };
+        break;
       case "flamethrower":
-        return { health: 40 + w * 5, speed: clamp(1.7 + w * 0.06, 1.7, 2.8), damage: 0 };
+        base = { health: 40 + w * 5, speed: clamp(1.7 + w * 0.06, 1.7, 2.8), damage: 0 };
+        break;
       case "drone":
-        return { health: 24 + w * 6, speed: clamp(1.6 + w * 0.08, 1.6, 3.4) * 1.15, damage: 8 + Math.floor(w / 2) };
+        base = { health: 24 + w * 6, speed: clamp(1.6 + w * 0.08, 1.6, 3.4) * 1.15, damage: 8 + Math.floor(w / 2) };
+        break;
       case "rifleman":
-        return { health: 30 + w * 6, speed: clamp(1.6 + w * 0.08, 1.6, 3.4), damage: 8 + Math.floor(w / 2) };
+        base = { health: 30 + w * 6, speed: clamp(1.6 + w * 0.08, 1.6, 3.4), damage: 8 + Math.floor(w / 2) };
+        break;
       default:
-        return { health: 30 + w * 6 + (Math.random() < 0.15 ? 25 : 0), speed: clamp(1.6 + w * 0.08, 1.6, 3.4), damage: 6 + Math.floor(w / 2) };
+        base = { health: 30 + w * 6 + (Math.random() < 0.15 ? 25 : 0), speed: clamp(1.6 + w * 0.08, 1.6, 3.4), damage: 6 + Math.floor(w / 2) };
     }
+    return {
+      health: base.health * dm.health,
+      speed: base.speed,
+      damage: base.damage * dm.damage,
+    };
   }
 
   _queueSpawn() {
@@ -467,7 +489,7 @@ export class EnemyManager {
     if (this.spawnQueue > 0) {
       this.spawnTimer -= dt;
       if (this.spawnTimer <= 0) {
-        this.spawnTimer = 0.6;
+        this.spawnTimer = 0.6 * this.difficultyMult.spawnRate;
         this._queueSpawn();
         this.spawnQueue--;
       }

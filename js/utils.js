@@ -157,12 +157,82 @@ export function buildSpriteBillboard(url, heightUnits = 2.6) {
       sprite.position.y = heightUnits / 2;
     }
   };
+  texture.onUpdate = applyAspect;
   if (texture.image) applyAspect();
-  else texture.onUpdate = applyAspect;
 
   const group = new THREE.Group();
   group.add(sprite);
   return { group, sprite };
+}
+
+// A billboard that swaps between 4 real directional sprites (front/right/back/left)
+// based on the angle between the entity's facing direction and the viewer, giving
+// genuine "rotation" rather than a single static image (classic Doom-sprite technique).
+export function buildDirectionalBillboard(urls, heightUnits = 2.6) {
+  const textures = {
+    front: loadTextureCached(urls.front),
+    right: loadTextureCached(urls.right),
+    back: loadTextureCached(urls.back),
+    left: loadTextureCached(urls.left),
+  };
+
+  const material = new THREE.SpriteMaterial({ map: textures.front, transparent: true });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(heightUnits, heightUnits, 1);
+  sprite.position.y = heightUnits / 2;
+
+  let currentKey = "front";
+
+  function applyAspectFor(tex) {
+    const img = tex.image;
+    if (img && img.width) {
+      const aspect = img.width / img.height;
+      sprite.scale.set(heightUnits * aspect, heightUnits, 1);
+      sprite.position.y = heightUnits / 2;
+    }
+  }
+
+  Object.values(textures).forEach((tex) => {
+    tex.onUpdate = () => {
+      if (textures[currentKey] === tex) applyAspectFor(tex);
+    };
+    if (tex.image) applyAspectFor(tex);
+  });
+
+  const group = new THREE.Group();
+  group.add(sprite);
+
+  // facingAngle: entity's own facing (radians, forward = (sin, 0, cos)).
+  // viewerPos: world position of the camera/player.
+  // entityPos: world position of the entity (group.position).
+  function updateFacing(facingAngle, viewerPos, entityPos) {
+    const fx = Math.sin(facingAngle);
+    const fz = Math.cos(facingAngle);
+    let tx = viewerPos.x - entityPos.x;
+    let tz = viewerPos.z - entityPos.z;
+    const len = Math.hypot(tx, tz) || 1;
+    tx /= len;
+    tz /= len;
+
+    const dot = fx * tx + fz * tz;
+    const cross = fx * tz - fz * tx;
+    const relAngle = Math.atan2(cross, dot);
+
+    let key;
+    if (Math.abs(relAngle) < Math.PI / 4) key = "front";
+    else if (relAngle >= Math.PI / 4 && relAngle < (3 * Math.PI) / 4) key = "right";
+    else if (relAngle <= -Math.PI / 4 && relAngle > (-3 * Math.PI) / 4) key = "left";
+    else key = "back";
+
+    if (key !== currentKey) {
+      currentKey = key;
+      material.map = textures[key];
+      material.needsUpdate = true;
+      applyAspectFor(textures[key]);
+    }
+  }
+
+  return { group, sprite, updateFacing };
 }
 
 // ---- Shield Trooper: soldier + a large frontal riot shield ----

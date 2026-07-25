@@ -75,6 +75,25 @@ export const WEAPON_DEFS = [
     scoped: true,
     color: 0x23261e,
   },
+  {
+    id: "knife",
+    name: "KNIFE",
+    damage: 65,
+    magSize: Infinity,
+    reserveMax: Infinity,
+    fireCooldown: 0.45,
+    reloadTime: 0,
+    auto: false,
+    pellets: 1,
+    spread: 0,
+    range: 2.4,
+    falloffStart: 2.4,
+    minDamageMult: 1,
+    adsZoom: 1,
+    adsSpreadMult: 1,
+    melee: true,
+    color: 0x9a9a9a,
+  },
 ];
 
 export class WeaponManager {
@@ -151,6 +170,15 @@ export class WeaponManager {
       const bolt = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.08), accent);
       bolt.position.set(0.06, 0.02, 0.18);
       group.add(body, barrel, scope, stock, bolt);
+    } else if (def.id === "knife") {
+      const bladeMat = new THREE.MeshLambertMaterial({ color: 0xcfd4d8 });
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.02, 0.32), bladeMat);
+      blade.position.set(0, 0, -0.2);
+      const handle = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.14), mat);
+      handle.position.set(0, 0, 0.02);
+      const guard = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.03, 0.02), accent);
+      guard.position.set(0, 0, -0.06);
+      group.add(blade, handle, guard);
     }
 
     group.traverse((obj) => {
@@ -248,7 +276,7 @@ export class WeaponManager {
     state.ammoInMag--;
     this.cooldownTimer = def.fireCooldown;
     playShot(def.id);
-    this._flash();
+    if (!def.melee) this._flash();
     this._recoil();
 
     const spread = def.spread * (this.aiming ? def.adsSpreadMult : 1);

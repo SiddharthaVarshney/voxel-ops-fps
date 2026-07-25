@@ -13,6 +13,7 @@ import { WeaponManager, WEAPON_DEFS } from "./weapons.js";
 import { EnemyManager } from "./enemies.js";
 import { GrenadeManager } from "./grenades.js";
 import { PickupManager } from "./pickups.js";
+import { buildVoxelSoldier, attachEnemyGun } from "./utils.js";
 import * as hud from "./hud.js";
 import { Minimap } from "./minimap.js";
 import { saveScore, getTopScores, isNewHighScore } from "./storage.js";
@@ -53,11 +54,43 @@ const grenadeManager = new GrenadeManager(scene);
 const pickupManager = new PickupManager(scene);
 const minimap = new Minimap(document.getElementById("minimap"));
 
+// ---------------- Third-person player body (hidden by default) ----------------
+const playerBody = buildVoxelSoldier({ bodyColor: 0x5a5a3a, headColor: 0xc99a72 });
+const headbandMat = new THREE.MeshLambertMaterial({ color: 0xaa1e1e });
+const headband = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.08, 0.4), headbandMat);
+headband.position.y = 1.7;
+playerBody.group.add(headband);
+attachEnemyGun(playerBody.parts.rightArm);
+playerBody.group.visible = false;
+scene.add(playerBody.group);
+let bodyWalkPhase = 0;
+
+let cameraMode = "fps"; // "fps" | "tps"
+const TPS_DISTANCE = 4.2;
+const TPS_HEIGHT = 1.4;
+
+function setCameraMode(mode) {
+  cameraMode = mode;
+  const isTps = mode === "tps";
+  playerBody.group.visible = isTps;
+  weapons.holder.visible = !isTps;
+}
+
+const lastBodyPos = { x: 0, z: 0 };
+const tpsRaycaster = new THREE.Raycaster();
+
 let colliders = [];
 let raycastMeshes = [];
 let arenaHalf = 20;
 let envGroup = null;
 let currentLevelId = "compound";
+let currentDifficulty = "normal";
+
+const DIFFICULTY_MULTS = {
+  easy: { health: 0.7, damage: 0.65, spawnRate: 1.3 },
+  normal: { health: 1, damage: 1, spawnRate: 1 },
+  hard: { health: 1.45, damage: 1.4, spawnRate: 0.75 },
+};
 
 let score = 0;
 let kills = 0;
@@ -138,6 +171,7 @@ function startGame(levelId) {
     s.ammoReserve = WEAPON_DEFS[i].reserveMax;
   });
 
+  enemyManager.difficultyMult = DIFFICULTY_MULTS[currentDifficulty];
   enemyManager.reset();
   grenadeManager.reset();
   pickupManager.reset();
@@ -150,6 +184,7 @@ function startGame(levelId) {
   aiming = false;
   camera.fov = BASE_FOV;
   camera.updateProjectionMatrix();
+  setCameraMode("fps");
 
   hud.updateScore(score);
   hud.updateHealth(player.health, player.maxHealth);
@@ -206,6 +241,13 @@ document.getElementById("btn-play").addEventListener("click", () => showScreen("
 document.querySelectorAll(".level-btn").forEach((btn) =>
   btn.addEventListener("click", () => startGame(btn.dataset.level))
 );
+document.querySelectorAll(".diff-btn").forEach((btn) =>
+  btn.addEventListener("click", () => {
+    currentDifficulty = btn.dataset.difficulty;
+    document.querySelectorAll(".diff-btn").forEach((b) => b.classList.remove("btn-primary"));
+    btn.classList.add("btn-primary");
+  })
+);
 document.getElementById("btn-scores").addEventListener("click", showScores);
 document.getElementById("btn-howto").addEventListener("click", () => showScreen("howto"));
 document.querySelectorAll(".back-btn").forEach((btn) =>
@@ -246,10 +288,12 @@ document.addEventListener("keydown", (e) => {
   if (e.code === "Digit2") weapons.switchTo(1);
   if (e.code === "Digit3") weapons.switchTo(2);
   if (e.code === "Digit4") weapons.switchTo(3);
+  if (e.code === "Digit5") weapons.switchTo(4);
   if (e.code === "KeyR") weapons.startReload();
   if (e.code === "KeyG") throwGrenade();
   if (e.code === "KeyN") useNuke();
   if (e.code === "KeyM") minimap.toggle();
+  if (e.code === "KeyV") setCameraMode(cameraMode === "fps" ? "tps" : "fps");
 });
 
 let mouseHeld = false;
@@ -481,6 +525,11 @@ if (isTouchDevice) {
     minimap.toggle();
   }, { passive: false });
 
+  document.getElementById("touch-view").addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    if (gameState === "playing") setCameraMode(cameraMode === "fps" ? "tps" : "fps");
+  }, { passive: false });
+
   document.getElementById("touch-pause").addEventListener("touchstart", (e) => {
     e.preventDefault();
     if (gameState === "playing") pauseGame();
@@ -526,6 +575,41 @@ function tick(now) {
 
     pickupManager.update(dt, player.position, handlePickup);
     minimap.draw(player, enemyManager, arenaHalf);
+
+    if (cameraMode === "tps") {
+      playerBody.group.position.set(player.position.x, player.position.y - 1.7, player.position.z);
+      playerBody.group.rotation.y = player.yaw;
+
+      const moved = Math.hypot(player.position.x - lastBodyPos.x, player.position.z - lastBodyPos.z);
+      if (moved > 0.0015) {
+        bodyWalkPhase += dt * 8;
+        const swing = Math.sin(bodyWalkPhase) * 0.5;
+        playerBody.parts.leftLeg.rotation.x = swing;
+        playerBody.parts.rightLeg.rotation.x = -swing;
+        playerBody.parts.leftArm.rotation.x = -swing * 0.6;
+        playerBody.parts.rightArm.rotation.x = -0.3 + swing * 0.3;
+      } else {
+        playerBody.parts.leftLeg.rotation.x *= 0.8;
+        playerBody.parts.rightLeg.rotation.x *= 0.8;
+      }
+      lastBodyPos.x = player.position.x;
+      lastBodyPos.z = player.position.z;
+
+      const backX = Math.sin(player.yaw);
+      const backZ = Math.cos(player.yaw);
+      let dist = TPS_DISTANCE;
+
+      tpsRaycaster.set(player.position, new THREE.Vector3(backX, 0, backZ).normalize());
+      tpsRaycaster.far = TPS_DISTANCE;
+      const hits = tpsRaycaster.intersectObjects(raycastMeshes, true);
+      if (hits.length > 0) dist = Math.max(0.6, hits[0].distance - 0.3);
+
+      camera.position.set(
+        player.position.x + backX * dist,
+        player.position.y + TPS_HEIGHT,
+        player.position.z + backZ * dist
+      );
+    }
 
     // camera shake decay
     if (shakeTime > 0) {

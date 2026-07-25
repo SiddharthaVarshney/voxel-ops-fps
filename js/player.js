@@ -131,12 +131,15 @@ export class Player {
   // never contribute here — they're handled as solid horizontal blockers.
   _groundHeightAt(x, z, colliders) {
     let best = 0;
-    const inset = PLAYER_RADIUS * 0.5;
     for (const c of colliders) {
       if (!c.vaultable) continue;
       const box = c.box;
       if (box.max.y > VAULT_MAX_HEIGHT) continue;
-      if (x >= box.min.x + inset && x <= box.max.x - inset && z >= box.min.z + inset && z <= box.max.z - inset) {
+      const closestX = clamp(x, box.min.x, box.max.x);
+      const closestZ = clamp(z, box.min.z, box.max.z);
+      const dx = x - closestX;
+      const dz = z - closestZ;
+      if (dx * dx + dz * dz <= PLAYER_RADIUS * PLAYER_RADIUS) {
         if (box.max.y > best) best = box.max.y;
       }
     }

@@ -18,6 +18,24 @@ function envGain(ac, startVal, endVal, duration) {
 
 export function playShot(kind = "pistol") {
   const ac = getCtx();
+
+  if (kind === "knife") {
+    const noise = ac.createBufferSource();
+    const bufferSize = ac.sampleRate * 0.12;
+    const buffer = ac.createBuffer(1, bufferSize, ac.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+    noise.buffer = buffer;
+    const filter = ac.createBiquadFilter();
+    filter.type = "highpass";
+    filter.frequency.value = 2000;
+    const gain = envGain(ac, 0.3, 0.001, 0.1);
+    noise.connect(filter).connect(gain).connect(ac.destination);
+    noise.start();
+    noise.stop(ac.currentTime + 0.1);
+    return;
+  }
+
   const noise = ac.createBufferSource();
   const bufferSize = ac.sampleRate * 0.15;
   const buffer = ac.createBuffer(1, bufferSize, ac.sampleRate);

@@ -46,6 +46,16 @@
 <section id="screen-levels" class="screen hidden">
   <div class="menu-panel">
     <h2 class="panel-title">Choose Deployment</h2>
+
+    <div class="difficulty-row">
+      <span class="difficulty-label">Difficulty</span>
+      <div class="difficulty-options">
+        <button class="btn diff-btn" data-difficulty="easy">Easy</button>
+        <button class="btn btn-primary diff-btn" data-difficulty="normal">Normal</button>
+        <button class="btn diff-btn" data-difficulty="hard">Hard</button>
+      </div>
+    </div>
+
     <div class="menu-actions">
       <button class="btn btn-primary level-btn" data-level="compound">Compound</button>
       <button class="btn level-btn" data-level="jungle">Jungle</button>
@@ -66,11 +76,12 @@
       <li><span class="key">RIGHT CLICK</span> Aim down sights</li>
       <li><span class="key">R</span> Reload</li>
       <li><span class="key">G</span> Throw grenade</li>
-      <li><span class="key">1 2 3 4</span> Switch weapon</li>
+      <li><span class="key">1 2 3 4 5</span> Switch weapon</li>
       <li><span class="key">SHIFT</span> Sprint</li>
       <li><span class="key">SPACE</span> Jump</li>
       <li><span class="key">N</span> Nuke (one-time use)</li>
       <li><span class="key">M</span> Toggle map</li>
+      <li><span class="key">V</span> Toggle 1st/3rd person</li>
       <li><span class="key">ESC</span> Pause</li>
     </ul>
     <p class="panel-copy">Survive escalating waves of hostiles — some shoot back, some fly, some carry shields you'll need to flank. Walk into low crates or rocks to automatically climb onto them. Health regenerates after a few seconds without damage; medkits, ammo, and grenade pickups also spawn during a run. The nuke is a single-use panic button that clears every enemy on the map. Click Start, then click the screen once to lock your mouse and begin.</p>
@@ -180,6 +191,7 @@
       <button id="touch-grenade" class="touch-btn small" aria-label="Grenade">💣</button>
       <button id="touch-nuke" class="touch-btn small" aria-label="Nuke">☢</button>
       <button id="touch-map" class="touch-btn small" aria-label="Map">MAP</button>
+      <button id="touch-view" class="touch-btn small" aria-label="Toggle view">VIEW</button>
     </div>
 
     <div class="touch-weapon-row">
@@ -187,6 +199,7 @@
       <button class="touch-weapon-btn" data-weapon="1">2</button>
       <button class="touch-weapon-btn" data-weapon="2">3</button>
       <button class="touch-weapon-btn" data-weapon="3">4</button>
+      <button class="touch-weapon-btn" data-weapon="4">5</button>
     </div>
 
     <button id="touch-pause" class="touch-pause" aria-label="Pause">II</button>
