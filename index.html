@@ -27,6 +27,7 @@
 
 <!-- ============ MAIN MENU ============ -->
 <section id="screen-menu" class="screen">
+  <img class="menu-hero-art" src="assets/sprites/drake_portrait.png" alt="" aria-hidden="true">
   <div class="menu-panel">
     <h1 class="title">VOXEL<span class="title-accent">OPS</span></h1>
     <p class="subtitle">pixelated 3D wave-survival shooter</p>
@@ -37,7 +38,7 @@
       <button id="btn-howto" class="btn">Controls</button>
     </div>
 
-    <p class="menu-footnote">Best played on desktop with mouse + keyboard.</p>
+    <p class="menu-footnote">Plays with mouse + keyboard, or touch controls on phone/tablet.</p>
   </div>
 </section>
 
@@ -68,9 +69,11 @@
       <li><span class="key">1 2 3 4</span> Switch weapon</li>
       <li><span class="key">SHIFT</span> Sprint</li>
       <li><span class="key">SPACE</span> Jump</li>
+      <li><span class="key">N</span> Nuke (one-time use)</li>
+      <li><span class="key">M</span> Toggle map</li>
       <li><span class="key">ESC</span> Pause</li>
     </ul>
-    <p class="panel-copy">Survive escalating waves of hostiles — some shoot back. Health regenerates after a few seconds without damage; medkits, ammo, and grenade pickups also spawn during a run. Click Start, then click the screen once to lock your mouse and begin.</p>
+    <p class="panel-copy">Survive escalating waves of hostiles — some shoot back, some fly, some carry shields you'll need to flank. Walk into low crates or rocks to automatically climb onto them. Health regenerates after a few seconds without damage; medkits, ammo, and grenade pickups also spawn during a run. The nuke is a single-use panic button that clears every enemy on the map. Click Start, then click the screen once to lock your mouse and begin.</p>
     <button class="btn btn-primary back-btn" data-back="menu">Back</button>
   </div>
 </section>
@@ -117,9 +120,16 @@
 <!-- ============ HUD (during play) ============ -->
 <div id="hud" class="hidden">
   <div class="hud-top-left">
-    <div class="hud-wave">WAVE <span id="hud-wave-num">1</span></div>
-    <div class="hud-score">SCORE <span id="hud-score-num">0</span></div>
+    <div class="operator-portrait">
+      <img src="assets/sprites/aman_hero_portrait.png" alt="" aria-hidden="true">
+    </div>
+    <div class="hud-top-text">
+      <div class="hud-wave">WAVE <span id="hud-wave-num">1</span></div>
+      <div class="hud-score">SCORE <span id="hud-score-num">0</span></div>
+    </div>
   </div>
+
+  <canvas id="minimap" class="minimap hidden" width="160" height="160"></canvas>
 
   <div id="hitmarker" class="hitmarker"></div>
   <div class="crosshair">
@@ -130,6 +140,7 @@
   <div id="toast-container" class="toast-container"></div>
 
   <div id="damage-flash" class="damage-flash"></div>
+  <div id="nuke-flash" class="nuke-flash"></div>
 
   <div class="hud-bottom">
     <div class="hud-health">
@@ -137,7 +148,10 @@
       <div class="bar health-bar"><div id="health-fill" class="bar-fill health-fill"></div></div>
     </div>
     <div class="hud-weapon">
-      <div class="hud-grenades">GRENADES <span id="grenade-count">3</span></div>
+      <div class="hud-row-mini">
+        <div class="hud-grenades">GRENADES <span id="grenade-count">3</span></div>
+        <div id="nuke-icon" class="nuke-icon" title="Nuke (N)">☢</div>
+      </div>
       <div id="weapon-name" class="weapon-name">PISTOL</div>
       <div id="weapon-ammo" class="weapon-ammo">— / —</div>
     </div>
@@ -145,6 +159,38 @@
 
   <div id="reload-indicator" class="reload-indicator hidden">RELOADING…</div>
   <div id="lock-hint" class="lock-hint">Click to aim</div>
+
+  <!-- ============ MOBILE TOUCH CONTROLS ============ -->
+  <div id="mobile-controls" class="mobile-controls">
+    <div id="look-zone" class="look-zone"></div>
+
+    <div id="joystick-base" class="joystick-base">
+      <div id="joystick-knob" class="joystick-knob"></div>
+    </div>
+
+    <button id="touch-fire" class="touch-fire" aria-label="Fire">FIRE</button>
+
+    <div class="touch-row touch-row-right">
+      <button id="touch-ads" class="touch-btn" aria-label="Aim">ADS</button>
+      <button id="touch-jump" class="touch-btn" aria-label="Jump">JUMP</button>
+    </div>
+
+    <div class="touch-row touch-row-left">
+      <button id="touch-reload" class="touch-btn small" aria-label="Reload">R</button>
+      <button id="touch-grenade" class="touch-btn small" aria-label="Grenade">💣</button>
+      <button id="touch-nuke" class="touch-btn small" aria-label="Nuke">☢</button>
+      <button id="touch-map" class="touch-btn small" aria-label="Map">MAP</button>
+    </div>
+
+    <div class="touch-weapon-row">
+      <button class="touch-weapon-btn" data-weapon="0">1</button>
+      <button class="touch-weapon-btn" data-weapon="1">2</button>
+      <button class="touch-weapon-btn" data-weapon="2">3</button>
+      <button class="touch-weapon-btn" data-weapon="3">4</button>
+    </div>
+
+    <button id="touch-pause" class="touch-pause" aria-label="Pause">II</button>
+  </div>
 </div>
 
 <script type="module" src="js/main.js"></script>

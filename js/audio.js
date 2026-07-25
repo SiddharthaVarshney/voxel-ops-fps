@@ -119,3 +119,33 @@ export function playEmptyClick() {
   osc.start();
   osc.stop(ac.currentTime + 0.03);
 }
+
+export function playNukeBoom() {
+  const ac = getCtx();
+
+  const noise = ac.createBufferSource();
+  const bufferSize = ac.sampleRate * 1.4;
+  const buffer = ac.createBuffer(1, bufferSize, ac.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 1.5);
+  noise.buffer = buffer;
+
+  const filter = ac.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.setValueAtTime(120, ac.currentTime);
+  filter.frequency.linearRampToValueAtTime(600, ac.currentTime + 0.3);
+
+  const gain = envGain(ac, 0.9, 0.001, 1.4);
+  noise.connect(filter).connect(gain).connect(ac.destination);
+  noise.start();
+  noise.stop(ac.currentTime + 1.4);
+
+  const osc = ac.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(55, ac.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(28, ac.currentTime + 1.0);
+  const oscGain = envGain(ac, 0.7, 0.001, 1.0);
+  osc.connect(oscGain).connect(ac.destination);
+  osc.start();
+  osc.stop(ac.currentTime + 1.0);
+}

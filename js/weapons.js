@@ -276,7 +276,7 @@ export class WeaponManager {
 
       if (target) {
         const dmg = this._damageAtDistance(def, firstHit.distance);
-        if (onHit) onHit(target.enemy, dmg, firstHit.point);
+        if (onHit) onHit(target.enemy, dmg, firstHit.point, origin);
       }
       // if the closest hit was a wall/rock/crate (not an enemy), the shot is blocked — no damage
     }

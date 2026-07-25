@@ -1,5 +1,17 @@
 import * as THREE from "three";
-import { buildVoxelSoldier, buildDrone, attachEnemyGun, rand, distance2D, resolveCircleBoxCollision, clamp } from "./utils.js";
+import {
+  buildVoxelSoldier,
+  buildDrone,
+  buildShieldTrooper,
+  buildHeavyGunner,
+  buildFlamethrowerTrooper,
+  buildSpriteBillboard,
+  attachEnemyGun,
+  rand,
+  distance2D,
+  resolveCircleBoxCollision,
+  clamp,
+} from "./utils.js";
 import { playEnemyDeath } from "./audio.js";
 
 const ENEMY_RADIUS = 0.35;
@@ -11,11 +23,25 @@ const RIFLEMAN_MAX_DIST = 15;
 const RIFLEMAN_FIRE_COOLDOWN = 1.5;
 const RIFLEMAN_HIT_CHANCE = 0.55;
 
+const HEAVY_MIN_DIST = 7;
+const HEAVY_MAX_DIST = 13;
+const HEAVY_FIRE_COOLDOWN = 0.9;
+const HEAVY_HIT_CHANCE = 0.5;
+
+const FLAME_RANGE = 5.5;
+const FLAME_CONE_ANGLE = 0.55; // radians half-angle
+const FLAME_DPS = 22;
+
 const DRONE_HEIGHT = 3.4;
 const DRONE_MIN_DIST = 6;
 const DRONE_MAX_DIST = 12;
 const DRONE_FIRE_COOLDOWN = 1.1;
 const DRONE_HIT_CHANCE = 0.45;
+
+const SHIELD_TURN_RATE = 2.0; // rad/sec — limited, so flanking is possible
+const SHIELD_DAMAGE_REDUCTION = 0.82;
+
+const SPAWN_TELEGRAPH_TIME = 1.0;
 
 let idCounter = 0;
 const _rayHelper = new THREE.Raycaster();
@@ -23,17 +49,19 @@ const _rayHelper = new THREE.Raycaster();
 export class Enemy {
   constructor({ type, health, speed, damage, position }) {
     this.id = ++idCounter;
-    this.type = type; // "grunt" | "rifleman" | "drone"
+    this.type = type;
     this.maxHealth = health;
     this.health = health;
     this.speed = speed;
     this.damage = damage;
-    this.state = "alive"; // alive | dying | dead
+    this.state = "alive";
     this.attackTimer = rand(0, 1);
     this.deathTimer = 0;
     this.walkPhase = rand(0, Math.PI * 2);
     this.strafeDir = Math.random() < 0.5 ? 1 : -1;
     this.strafeTimer = rand(1.5, 3.5);
+    this.facingAngle = rand(0, Math.PI * 2);
+    this.flameActive = false;
 
     if (type === "drone") {
       const built = buildDrone();
@@ -42,6 +70,33 @@ export class Enemy {
       this.rotors = built.rotors;
       this.group.position.copy(position);
       this.group.position.y = DRONE_HEIGHT;
+    } else if (type === "mutant_brute") {
+      const built = buildSpriteBillboard("assets/sprites/brute_commando.png", 3.2);
+      this.group = built.group;
+      this.sprite = built.sprite;
+      this.group.position.copy(position);
+    } else if (type === "shield_trooper") {
+      const built = buildShieldTrooper();
+      this.group = built.group;
+      this.parts = built.parts;
+      this.shield = built.shield;
+      this.group.position.copy(position);
+    } else if (type === "heavy_gunner") {
+      const built = buildHeavyGunner();
+      this.group = built.group;
+      this.parts = built.parts;
+      this.group.position.copy(position);
+    } else if (type === "flamethrower") {
+      const built = buildFlamethrowerTrooper();
+      this.group = built.group;
+      this.parts = built.parts;
+      this.group.position.copy(position);
+      const coneMat = new THREE.MeshBasicMaterial({ color: 0xff6a1a, transparent: true, opacity: 0.55 });
+      this.flameCone = new THREE.Mesh(new THREE.ConeGeometry(1.1, FLAME_RANGE, 10, 1, true), coneMat);
+      this.flameCone.rotation.x = -Math.PI / 2;
+      this.flameCone.position.set(0, 1.1, -FLAME_RANGE / 2);
+      this.flameCone.visible = false;
+      this.group.add(this.flameCone);
     } else {
       const isElite = health > 60;
       const built = buildVoxelSoldier({
@@ -58,14 +113,27 @@ export class Enemy {
     this.position = this.group.position;
   }
 
-  takeDamage(amount) {
+  takeDamage(amount, hitOrigin) {
     if (this.state !== "alive") return false;
-    this.health -= amount;
+
+    let dmg = amount;
+    if (this.type === "shield_trooper" && hitOrigin) {
+      const forward = new THREE.Vector3(Math.sin(this.facingAngle), 0, Math.cos(this.facingAngle));
+      const toShooter = hitOrigin.clone().sub(this.position);
+      toShooter.y = 0;
+      toShooter.normalize();
+      const frontality = forward.dot(toShooter);
+      if (frontality > 0.35) {
+        dmg = amount * (1 - SHIELD_DAMAGE_REDUCTION);
+      }
+    }
+
+    this.health -= dmg;
     if (this.health <= 0) {
       this.state = "dying";
       this.deathTimer = 0.5;
       playEnemyDeath();
-      return true; // killed
+      return true;
     }
     return false;
   }
@@ -86,9 +154,13 @@ export class Enemy {
   update(dt, playerPos, colliders, blockerMeshes, callbacks) {
     if (this.state === "dying") {
       this.deathTimer -= dt;
+      if (this.flameCone) this.flameCone.visible = false;
       if (this.type === "drone") {
         this.group.position.y = Math.max(0.3, this.group.position.y - dt * 2.5);
         this.group.rotation.z += dt * 6;
+      } else if (this.type === "mutant_brute") {
+        this.sprite.material.opacity = Math.max(0, 1 - (0.5 - this.deathTimer) / 0.5);
+        this.group.position.y = Math.max(0, this.group.position.y - dt * 1.5);
       } else {
         this.group.rotation.z = clamp(this.group.rotation.z + dt * 4, 0, Math.PI / 2);
         this.group.position.y = Math.max(0, this.group.position.y - dt * 1.2);
@@ -98,21 +170,33 @@ export class Enemy {
     }
     if (this.state !== "alive") return;
 
-    if (this.type === "grunt") {
-      this._updateGrunt(dt, playerPos, colliders, callbacks);
+    if (this.type === "grunt" || this.type === "mutant_brute") {
+      this._updateMelee(dt, playerPos, colliders, callbacks);
     } else if (this.type === "rifleman") {
-      this._updateRifleman(dt, playerPos, colliders, blockerMeshes, callbacks);
+      this._updateRanged(dt, playerPos, colliders, blockerMeshes, callbacks, {
+        min: RIFLEMAN_MIN_DIST, max: RIFLEMAN_MAX_DIST, cooldown: RIFLEMAN_FIRE_COOLDOWN, hitChance: RIFLEMAN_HIT_CHANCE,
+      });
+    } else if (this.type === "heavy_gunner") {
+      this._updateRanged(dt, playerPos, colliders, blockerMeshes, callbacks, {
+        min: HEAVY_MIN_DIST, max: HEAVY_MAX_DIST, cooldown: HEAVY_FIRE_COOLDOWN, hitChance: HEAVY_HIT_CHANCE, suppress: true,
+      });
     } else if (this.type === "drone") {
       this._updateDrone(dt, playerPos, blockerMeshes, callbacks);
+    } else if (this.type === "shield_trooper") {
+      this._updateShieldTrooper(dt, playerPos, colliders, callbacks);
+    } else if (this.type === "flamethrower") {
+      this._updateFlamethrower(dt, playerPos, colliders, blockerMeshes, callbacks);
     }
   }
 
-  _updateGrunt(dt, playerPos, colliders, callbacks) {
+  _updateMelee(dt, playerPos, colliders, callbacks) {
     const dist = distance2D(this.position, playerPos);
-    if (dist > MELEE_ATTACK_RANGE) {
+    const reach = this.type === "mutant_brute" ? MELEE_ATTACK_RANGE + 0.5 : MELEE_ATTACK_RANGE;
+    if (dist > reach) {
       this._moveToward(playerPos, this.speed, dt);
+      this._faceTarget(playerPos, 999);
       this._animateWalk(dt);
-      for (const box of colliders) resolveCircleBoxCollision(this.position, ENEMY_RADIUS, box);
+      for (const c of colliders) resolveCircleBoxCollision(this.position, ENEMY_RADIUS, c.box);
     } else {
       this.attackTimer -= dt;
       if (this.attackTimer <= 0) {
@@ -122,16 +206,14 @@ export class Enemy {
     }
   }
 
-  _updateRifleman(dt, playerPos, colliders, blockerMeshes, callbacks) {
+  _updateRanged(dt, playerPos, colliders, blockerMeshes, callbacks, cfg) {
     const dist = distance2D(this.position, playerPos);
-    const dx = playerPos.x - this.position.x;
-    const dz = playerPos.z - this.position.z;
-    this.group.rotation.y = Math.atan2(dx, dz);
+    this._faceTarget(playerPos, 999);
 
-    if (dist < RIFLEMAN_MIN_DIST) {
+    if (dist < cfg.min) {
       this._moveAway(playerPos, this.speed, dt);
       this._animateWalk(dt);
-    } else if (dist > RIFLEMAN_MAX_DIST) {
+    } else if (dist > cfg.max) {
       this._moveToward(playerPos, this.speed, dt);
       this._animateWalk(dt);
     } else {
@@ -140,6 +222,8 @@ export class Enemy {
         this.strafeTimer = rand(1.5, 3.5);
         this.strafeDir *= -1;
       }
+      const dx = playerPos.x - this.position.x;
+      const dz = playerPos.z - this.position.z;
       const perpX = -dz / (dist || 1);
       const perpZ = dx / (dist || 1);
       this.position.x += perpX * this.strafeDir * this.speed * 0.5 * dt;
@@ -147,18 +231,16 @@ export class Enemy {
       this._animateWalk(dt, 0.5);
     }
 
-    for (const box of colliders) resolveCircleBoxCollision(this.position, ENEMY_RADIUS, box);
+    for (const c of colliders) resolveCircleBoxCollision(this.position, ENEMY_RADIUS, c.box);
 
     this.attackTimer -= dt;
-    if (this.attackTimer <= 0 && dist <= RIFLEMAN_MAX_DIST + 2) {
+    if (this.attackTimer <= 0 && dist <= cfg.max + 2) {
       if (this._hasLineOfSight(playerPos, blockerMeshes)) {
-        this.attackTimer = RIFLEMAN_FIRE_COOLDOWN;
+        this.attackTimer = cfg.cooldown;
         const from = this.position.clone();
         from.y += 1.3;
-        if (callbacks?.onRangedAttack) {
-          const hit = Math.random() < RIFLEMAN_HIT_CHANCE;
-          callbacks.onRangedAttack(hit ? this.damage : 0, from, playerPos.clone());
-        }
+        const hit = Math.random() < cfg.hitChance;
+        callbacks?.onRangedAttack?.(hit ? this.damage : 0, from, playerPos.clone(), cfg.suppress && hit);
       }
     }
   }
@@ -170,7 +252,6 @@ export class Enemy {
     this.group.rotation.y = Math.atan2(dx, dz);
     this.group.position.y = DRONE_HEIGHT + Math.sin(this.walkPhase) * 0.15;
     this.walkPhase += dt * 2;
-
     this.rotors?.forEach((r) => { r.rotation.y += dt * 40; });
 
     if (dist < DRONE_MIN_DIST) {
@@ -189,12 +270,63 @@ export class Enemy {
       if (this._hasLineOfSight(playerPos, blockerMeshes)) {
         this.attackTimer = DRONE_FIRE_COOLDOWN;
         const from = this.position.clone();
-        if (callbacks?.onRangedAttack) {
-          const hit = Math.random() < DRONE_HIT_CHANCE;
-          callbacks.onRangedAttack(hit ? this.damage : 0, from, playerPos.clone());
-        }
+        const hit = Math.random() < DRONE_HIT_CHANCE;
+        callbacks?.onRangedAttack?.(hit ? this.damage : 0, from, playerPos.clone(), false);
       }
     }
+  }
+
+  _updateShieldTrooper(dt, playerPos, colliders, callbacks) {
+    const dist = distance2D(this.position, playerPos);
+    this._faceTarget(playerPos, SHIELD_TURN_RATE, dt);
+
+    if (dist > MELEE_ATTACK_RANGE + 0.3) {
+      this._moveToward(playerPos, this.speed, dt);
+      this._animateWalk(dt);
+      for (const c of colliders) resolveCircleBoxCollision(this.position, ENEMY_RADIUS, c.box);
+    } else {
+      this.attackTimer -= dt;
+      if (this.attackTimer <= 0) {
+        this.attackTimer = MELEE_ATTACK_COOLDOWN;
+        if (callbacks?.onMeleeAttack) callbacks.onMeleeAttack(this.damage);
+      }
+    }
+  }
+
+  _updateFlamethrower(dt, playerPos, colliders, blockerMeshes, callbacks) {
+    const dist = distance2D(this.position, playerPos);
+    this._faceTarget(playerPos, 999);
+
+    if (dist > FLAME_RANGE * 0.7) {
+      this._moveToward(playerPos, this.speed, dt);
+      this._animateWalk(dt);
+      this.flameActive = false;
+    } else {
+      this.flameActive = this._hasLineOfSight(playerPos, blockerMeshes);
+    }
+    for (const c of colliders) resolveCircleBoxCollision(this.position, ENEMY_RADIUS, c.box);
+
+    if (this.flameCone) this.flameCone.visible = this.flameActive;
+
+    if (this.flameActive && dist <= FLAME_RANGE) {
+      callbacks?.onFlameTick?.(FLAME_DPS * dt);
+    }
+  }
+
+  _faceTarget(target, turnRate, dt) {
+    const dx = target.x - this.position.x;
+    const dz = target.z - this.position.z;
+    const desired = Math.atan2(dx, dz);
+    if (turnRate >= 999) {
+      this.facingAngle = desired;
+    } else {
+      let diff = desired - this.facingAngle;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      const maxStep = turnRate * dt;
+      this.facingAngle += clamp(diff, -maxStep, maxStep);
+    }
+    this.group.rotation.y = this.facingAngle;
   }
 
   _moveToward(target, speed, dt) {
@@ -219,8 +351,9 @@ export class Enemy {
     const swing = Math.sin(this.walkPhase) * 0.5;
     this.parts.leftLeg.rotation.x = swing;
     this.parts.rightLeg.rotation.x = -swing;
-    this.parts.leftArm.rotation.x = this.type === "rifleman" ? -0.9 : -swing;
-    this.parts.rightArm.rotation.x = this.type === "rifleman" ? -0.9 : swing;
+    const armsFixed = this.type === "rifleman" || this.type === "heavy_gunner" || this.type === "flamethrower";
+    this.parts.leftArm.rotation.x = armsFixed ? -0.9 : -swing;
+    this.parts.rightArm.rotation.x = armsFixed ? -0.9 : swing;
   }
 }
 
@@ -233,13 +366,16 @@ export class EnemyManager {
     this.spawnTimer = 0;
     this.arenaHalf = 21;
     this.tracers = [];
+    this.pendingSpawns = []; // telegraphed spawns not yet materialized
   }
 
   reset() {
     for (const e of this.enemies) this.scene.remove(e.group);
     for (const t of this.tracers) this.scene.remove(t.line);
+    for (const p of this.pendingSpawns) this.scene.remove(p.ring);
     this.enemies = [];
     this.tracers = [];
+    this.pendingSpawns = [];
     this.wave = 0;
     this.spawnQueue = 0;
     this.spawnTimer = 0;
@@ -257,17 +393,41 @@ export class EnemyManager {
   }
 
   get waveCleared() {
-    return this.spawnQueue <= 0 && this.aliveCount === 0;
+    return this.spawnQueue <= 0 && this.aliveCount === 0 && this.pendingSpawns.length === 0;
   }
 
   _pickType() {
     const roll = Math.random();
-    if (this.wave >= 4 && roll < 0.2) return "drone";
-    if (this.wave >= 2 && roll < 0.5) return "rifleman";
+    if (this.wave >= 6 && roll < 0.12) return "mutant_brute";
+    if (this.wave >= 5 && roll < 0.28) return "flamethrower";
+    if (this.wave >= 4 && roll < 0.45) return "drone";
+    if (this.wave >= 3 && roll < 0.6) return "heavy_gunner";
+    if (this.wave >= 3 && roll < 0.75) return "shield_trooper";
+    if (this.wave >= 2 && roll < 0.9) return "rifleman";
     return "grunt";
   }
 
-  _spawnOne() {
+  _statsFor(type) {
+    const w = this.wave;
+    switch (type) {
+      case "mutant_brute":
+        return { health: 140 + w * 10, speed: clamp(1.3 + w * 0.05, 1.3, 2.4), damage: 16 + Math.floor(w / 2) };
+      case "shield_trooper":
+        return { health: 55 + w * 6, speed: clamp(1.4 + w * 0.05, 1.4, 2.6), damage: 9 + Math.floor(w / 2) };
+      case "heavy_gunner":
+        return { health: 60 + w * 6, speed: clamp(1.3 + w * 0.05, 1.3, 2.2), damage: 7 + Math.floor(w / 2) };
+      case "flamethrower":
+        return { health: 40 + w * 5, speed: clamp(1.7 + w * 0.06, 1.7, 2.8), damage: 0 };
+      case "drone":
+        return { health: 24 + w * 6, speed: clamp(1.6 + w * 0.08, 1.6, 3.4) * 1.15, damage: 8 + Math.floor(w / 2) };
+      case "rifleman":
+        return { health: 30 + w * 6, speed: clamp(1.6 + w * 0.08, 1.6, 3.4), damage: 8 + Math.floor(w / 2) };
+      default:
+        return { health: 30 + w * 6 + (Math.random() < 0.15 ? 25 : 0), speed: clamp(1.6 + w * 0.08, 1.6, 3.4), damage: 6 + Math.floor(w / 2) };
+    }
+  }
+
+  _queueSpawn() {
     const edge = Math.floor(rand(0, 4));
     const half = this.arenaHalf;
     let x, z;
@@ -277,14 +437,22 @@ export class EnemyManager {
     else { x = half; z = rand(-half, half); }
 
     const type = this._pickType();
-    const healthBase = type === "drone" ? 24 : 30;
-    const health = healthBase + this.wave * 6 + (Math.random() < 0.15 ? 25 : 0);
-    const speed = clamp(1.6 + this.wave * 0.08, 1.6, 3.4) * (type === "drone" ? 1.15 : 1);
-    const damage = type === "grunt" ? 6 + Math.floor(this.wave / 2) : 8 + Math.floor(this.wave / 2);
 
-    const enemy = new Enemy({ type, health, speed, damage, position: new THREE.Vector3(x, 0, z) });
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xff2b2b, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.75, 20), ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(x, 0.05, z);
+    this.scene.add(ring);
+
+    this.pendingSpawns.push({ x, z, type, timer: SPAWN_TELEGRAPH_TIME, ring });
+  }
+
+  _materialize(p) {
+    const stats = this._statsFor(p.type);
+    const enemy = new Enemy({ type: p.type, ...stats, position: new THREE.Vector3(p.x, 0, p.z) });
     this.enemies.push(enemy);
     this.scene.add(enemy.group);
+    this.scene.remove(p.ring);
   }
 
   _addTracer(from, to) {
@@ -300,18 +468,33 @@ export class EnemyManager {
       this.spawnTimer -= dt;
       if (this.spawnTimer <= 0) {
         this.spawnTimer = 0.6;
-        this._spawnOne();
+        this._queueSpawn();
         this.spawnQueue--;
       }
     }
 
+    this.pendingSpawns = this.pendingSpawns.filter((p) => {
+      p.timer -= dt;
+      const pulse = 1 + Math.sin(p.timer * 20) * 0.15;
+      p.ring.scale.set(pulse, pulse, 1);
+      if (p.timer <= 0) {
+        this._materialize(p);
+        return false;
+      }
+      return true;
+    });
+
     for (const enemy of this.enemies) {
       enemy.update(dt, playerPos, colliders, blockerMeshes, {
         onMeleeAttack: (dmg) => callbacks?.onPlayerHit?.(dmg),
-        onRangedAttack: (dmg, from, to) => {
+        onRangedAttack: (dmg, from, to, suppress) => {
           this._addTracer(from, to);
-          if (dmg > 0) callbacks?.onPlayerHit?.(dmg);
+          if (dmg > 0) {
+            callbacks?.onPlayerHit?.(dmg);
+            if (suppress) callbacks?.onSuppressed?.();
+          }
         },
+        onFlameTick: (dmg) => callbacks?.onPlayerHit?.(dmg),
       });
     }
 

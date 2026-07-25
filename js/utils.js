@@ -127,6 +127,93 @@ export function buildDrone() {
   return { group, gun, rotors, light };
 }
 
+// ---- Sprite billboard support (for enemies using real extracted artwork) ----
+const _textureLoader = new THREE.TextureLoader();
+const _textureCache = new Map();
+
+function loadTextureCached(url) {
+  if (!_textureCache.has(url)) {
+    const tex = _textureLoader.load(url);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    _textureCache.set(url, tex);
+  }
+  return _textureCache.get(url);
+}
+
+// A camera-facing billboard built from a real extracted character sprite.
+// heightUnits controls world-space size; aspect is read once the texture loads.
+export function buildSpriteBillboard(url, heightUnits = 2.6) {
+  const texture = loadTextureCached(url);
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(heightUnits, heightUnits, 1);
+  sprite.position.y = heightUnits / 2;
+
+  const applyAspect = () => {
+    const img = texture.image;
+    if (img && img.width) {
+      const aspect = img.width / img.height;
+      sprite.scale.set(heightUnits * aspect, heightUnits, 1);
+      sprite.position.y = heightUnits / 2;
+    }
+  };
+  if (texture.image) applyAspect();
+  else texture.onUpdate = applyAspect;
+
+  const group = new THREE.Group();
+  group.add(sprite);
+  return { group, sprite };
+}
+
+// ---- Shield Trooper: soldier + a large frontal riot shield ----
+export function buildShieldTrooper() {
+  const built = buildVoxelSoldier({ bodyColor: 0x2e2f33, headColor: 0xc99a72 });
+  const shieldMat = new THREE.MeshLambertMaterial({ color: 0x3a3a3a });
+  const shield = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.1, 0.1), shieldMat);
+  shield.position.set(0, 1.15, -0.32);
+  const emblemMat = new THREE.MeshLambertMaterial({ color: 0xaa1e1e });
+  const emblem = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.02), emblemMat);
+  emblem.position.set(0, 1.15, -0.375);
+  built.group.add(shield, emblem);
+  shield.castShadow = true;
+  return { ...built, shield };
+}
+
+// ---- Heavy Gunner: bulkier soldier + minigun cluster ----
+export function buildHeavyGunner() {
+  const built = buildVoxelSoldier({ bodyColor: 0x4a4030, headColor: 0xc99a72 });
+  built.group.scale.set(1.25, 1.2, 1.25);
+
+  const gunMat = new THREE.MeshLambertMaterial({ color: 0x151515 });
+  const gunGroup = new THREE.Group();
+  for (let i = 0; i < 5; i++) {
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.5, 6), gunMat);
+    barrel.rotation.x = Math.PI / 2;
+    const angle = (i / 5) * Math.PI * 2;
+    barrel.position.set(Math.cos(angle) * 0.06, Math.sin(angle) * 0.06 - 0.5, -0.25);
+    gunGroup.add(barrel);
+  }
+  built.parts.rightArm.add(gunGroup);
+  return { ...built, gunGroup };
+}
+
+// ---- Flamethrower Trooper: soldier + fuel tank + nozzle ----
+export function buildFlamethrowerTrooper() {
+  const built = buildVoxelSoldier({ bodyColor: 0x3a3226, headColor: 0xc99a72 });
+  const tankMat = new THREE.MeshLambertMaterial({ color: 0x8a2020 });
+  const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.55, 8), tankMat);
+  tank.position.set(0, 1.15, 0.22);
+  built.group.add(tank);
+
+  const nozzleMat = new THREE.MeshLambertMaterial({ color: 0x1c1c1c });
+  const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.045, 0.4, 6), nozzleMat);
+  nozzle.rotation.x = Math.PI / 2;
+  nozzle.position.set(0.1, -0.55, -0.2);
+  built.parts.rightArm.add(nozzle);
+
+  return { ...built, tank };
+}
+
 // Simple 2D circle-vs-box collision resolution used for arena obstacles.
 export function resolveCircleBoxCollision(pos, radius, box) {
   const closestX = clamp(pos.x, box.min.x, box.max.x);

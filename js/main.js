@@ -14,8 +14,15 @@ import { EnemyManager } from "./enemies.js";
 import { GrenadeManager } from "./grenades.js";
 import { PickupManager } from "./pickups.js";
 import * as hud from "./hud.js";
+import { Minimap } from "./minimap.js";
 import { saveScore, getTopScores, isNewHighScore } from "./storage.js";
-import { playWaveStart, playPlayerHurt } from "./audio.js";
+import { playWaveStart, playPlayerHurt, playNukeBoom } from "./audio.js";
+
+const isTouchDevice = ("ontouchstart" in window) || navigator.maxTouchPoints > 0 || window.matchMedia("(pointer: coarse)").matches;
+if (isTouchDevice) {
+  document.body.classList.add("touch-device");
+  document.getElementById("mobile-controls").classList.add("active");
+}
 
 // ---------------- DOM refs ----------------
 const screens = {
@@ -44,6 +51,7 @@ const weapons = new WeaponManager(camera, scene);
 const enemyManager = new EnemyManager(scene);
 const grenadeManager = new GrenadeManager(scene);
 const pickupManager = new PickupManager(scene);
+const minimap = new Minimap(document.getElementById("minimap"));
 
 let colliders = [];
 let raycastMeshes = [];
@@ -55,6 +63,7 @@ let score = 0;
 let kills = 0;
 let grenadeCount = 3;
 let waveTransitionTimer = 0;
+let nukeAvailable = true;
 
 // simple camera shake state
 let shakeTime = 0;
@@ -89,6 +98,7 @@ function showMenu() {
   showScreen("menu");
   hudEl.classList.add("hidden");
   player.exitLock();
+  if (isTouchDevice) player.locked = false;
 }
 
 async function showScores() {
@@ -135,6 +145,8 @@ function startGame(levelId) {
   score = 0;
   kills = 0;
   grenadeCount = 3;
+  nukeAvailable = true;
+  document.getElementById("nuke-icon").classList.remove("used");
   aiming = false;
   camera.fov = BASE_FOV;
   camera.updateProjectionMatrix();
@@ -148,26 +160,33 @@ function startGame(levelId) {
   hud.updateWave(wave);
   playWaveStart();
 
-  hud.setLockHint(true, "Click to aim");
-  player.requestLock();
+  if (isTouchDevice) {
+    player.enableTouchControl();
+    hud.setLockHint(false);
+  } else {
+    hud.setLockHint(true, "Click to aim");
+    player.requestLock();
+  }
 }
 
 function pauseGame() {
   if (gameState !== "playing") return;
   gameState = "paused";
   showScreen("pause");
-  player.exitLock();
+  if (!isTouchDevice) player.exitLock();
 }
 
 function resumeGame() {
   gameState = "playing";
   showScreen(null);
-  player.requestLock();
+  if (isTouchDevice) player.enableTouchControl();
+  else player.requestLock();
 }
 
 async function endGame() {
   gameState = "gameover";
   player.exitLock();
+  if (isTouchDevice) player.locked = false;
   hudEl.classList.add("hidden");
   hud.setScoped(false);
 
@@ -229,6 +248,8 @@ document.addEventListener("keydown", (e) => {
   if (e.code === "Digit4") weapons.switchTo(3);
   if (e.code === "KeyR") weapons.startReload();
   if (e.code === "KeyG") throwGrenade();
+  if (e.code === "KeyN") useNuke();
+  if (e.code === "KeyM") minimap.toggle();
 });
 
 let mouseHeld = false;
@@ -237,6 +258,7 @@ let aiming = false;
 renderer.domElement.addEventListener("contextmenu", (e) => e.preventDefault());
 
 renderer.domElement.addEventListener("mousedown", (e) => {
+  if (isTouchDevice) return;
   if (gameState === "playing" && !player.locked) {
     player.requestLock();
     return;
@@ -253,6 +275,7 @@ renderer.domElement.addEventListener("mousedown", (e) => {
 });
 
 document.addEventListener("mouseup", (e) => {
+  if (isTouchDevice) return;
   if (e.button === 0) mouseHeld = false;
   if (e.button === 2) {
     aiming = false;
@@ -261,8 +284,8 @@ document.addEventListener("mouseup", (e) => {
 });
 
 function fireWeapon() {
-  weapons.tryFire(enemyManager.getHitTargets(), raycastMeshes, (enemy, damage, point) => {
-    const killed = enemy.takeDamage(damage);
+  weapons.tryFire(enemyManager.getHitTargets(), raycastMeshes, (enemy, damage, point, origin) => {
+    const killed = enemy.takeDamage(damage, origin);
     hud.flashHitmarker();
     if (killed) {
       kills++;
@@ -283,6 +306,30 @@ function throwGrenade() {
   hud.updateGrenades(grenadeCount);
 }
 
+function useNuke() {
+  if (!nukeAvailable || !player.locked) return;
+  nukeAvailable = false;
+  document.getElementById("nuke-icon").classList.add("used");
+
+  for (const enemy of enemyManager.enemies) {
+    if (enemy.state !== "alive") continue;
+    const killed = enemy.takeDamage(99999);
+    if (killed) {
+      kills++;
+      score += 100;
+    }
+  }
+
+  playNukeBoom();
+  triggerShake(0.9, 0.28);
+
+  const flash = document.getElementById("nuke-flash");
+  flash.classList.remove("show");
+  void flash.offsetWidth;
+  flash.classList.add("show");
+  setTimeout(() => flash.classList.remove("show"), 1200);
+}
+
 function handlePickup(type) {
   if (type === "health") {
     player.heal(25);
@@ -293,6 +340,159 @@ function handlePickup(type) {
     hud.updateGrenades(grenadeCount);
   }
   hud.showPickupToast(type);
+}
+
+// ---------------- Mobile touch controls ----------------
+if (isTouchDevice) {
+  const joystickBase = document.getElementById("joystick-base");
+  const joystickKnob = document.getElementById("joystick-knob");
+  const lookZone = document.getElementById("look-zone");
+  const touchFire = document.getElementById("touch-fire");
+
+  const JOY_RADIUS = 55;
+  let joyTouchId = null;
+  let joyCenter = { x: 0, y: 0 };
+
+  function setJoystickInput(dx, dy) {
+    const len = Math.hypot(dx, dy);
+    const clamped = Math.min(len, JOY_RADIUS);
+    const nx = len > 0 ? dx / len : 0;
+    const ny = len > 0 ? dy / len : 0;
+    const mag = clamped / JOY_RADIUS;
+    joystickKnob.style.transform = `translate(${nx * clamped}px, ${ny * clamped}px)`;
+    // Screen-space: up (negative dy) = forward, right (positive dx) = strafe right.
+    player.analogForward = -ny * mag;
+    player.analogStrafe = nx * mag;
+    const sprinting = mag > 0.85;
+    if (sprinting) player.keys.add("ShiftLeft");
+    else player.keys.delete("ShiftLeft");
+  }
+
+  function resetJoystick() {
+    joyTouchId = null;
+    joystickKnob.style.transform = "translate(0px, 0px)";
+    player.analogForward = 0;
+    player.analogStrafe = 0;
+    player.keys.delete("ShiftLeft");
+  }
+
+  joystickBase.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    const rect = joystickBase.getBoundingClientRect();
+    joyCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    joyTouchId = t.identifier;
+    setJoystickInput(t.clientX - joyCenter.x, t.clientY - joyCenter.y);
+  }, { passive: false });
+
+  joystickBase.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      if (t.identifier === joyTouchId) {
+        setJoystickInput(t.clientX - joyCenter.x, t.clientY - joyCenter.y);
+      }
+    }
+  }, { passive: false });
+
+  ["touchend", "touchcancel"].forEach((evt) =>
+    joystickBase.addEventListener(evt, (e) => {
+      for (const t of e.changedTouches) {
+        if (t.identifier === joyTouchId) resetJoystick();
+      }
+    })
+  );
+
+  // Look zone: drag anywhere on the right side of the screen to aim.
+  let lookTouchId = null;
+  let lastLook = { x: 0, y: 0 };
+
+  lookZone.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    lookTouchId = t.identifier;
+    lastLook = { x: t.clientX, y: t.clientY };
+  }, { passive: false });
+
+  lookZone.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      if (t.identifier === lookTouchId) {
+        const dx = t.clientX - lastLook.x;
+        const dy = t.clientY - lastLook.y;
+        lastLook = { x: t.clientX, y: t.clientY };
+        if (gameState === "playing") player.lookBy(dx * 1.4, dy * 1.4);
+      }
+    }
+  }, { passive: false });
+
+  ["touchend", "touchcancel"].forEach((evt) =>
+    lookZone.addEventListener(evt, (e) => {
+      for (const t of e.changedTouches) {
+        if (t.identifier === lookTouchId) lookTouchId = null;
+      }
+    })
+  );
+
+  touchFire.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    if (gameState !== "playing") return;
+    mouseHeld = true;
+    fireWeapon();
+  }, { passive: false });
+  ["touchend", "touchcancel"].forEach((evt) =>
+    touchFire.addEventListener(evt, (e) => {
+      e.preventDefault();
+      mouseHeld = false;
+    }, { passive: false })
+  );
+
+  document.getElementById("touch-ads").addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    aiming = true;
+    weapons.setAiming(true);
+  }, { passive: false });
+  document.getElementById("touch-ads").addEventListener("touchend", (e) => {
+    e.preventDefault();
+    aiming = false;
+    weapons.setAiming(false);
+  }, { passive: false });
+
+  const jumpBtn = document.getElementById("touch-jump");
+  jumpBtn.addEventListener("touchstart", (e) => { e.preventDefault(); player.keys.add("Space"); }, { passive: false });
+  jumpBtn.addEventListener("touchend", (e) => { e.preventDefault(); player.keys.delete("Space"); }, { passive: false });
+
+  document.getElementById("touch-reload").addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    if (gameState === "playing") weapons.startReload();
+  }, { passive: false });
+
+  document.getElementById("touch-grenade").addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    if (gameState === "playing") throwGrenade();
+  }, { passive: false });
+
+  document.getElementById("touch-nuke").addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    if (gameState === "playing") useNuke();
+  }, { passive: false });
+
+  document.getElementById("touch-map").addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    minimap.toggle();
+  }, { passive: false });
+
+  document.getElementById("touch-pause").addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    if (gameState === "playing") pauseGame();
+    else if (gameState === "paused") resumeGame();
+  }, { passive: false });
+
+  document.querySelectorAll(".touch-weapon-btn").forEach((btn) => {
+    btn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      if (gameState === "playing") weapons.switchTo(parseInt(btn.dataset.weapon, 10));
+    }, { passive: false });
+  });
 }
 
 // ---------------- Game loop ----------------
@@ -312,6 +512,7 @@ function tick(now) {
 
     enemyManager.update(dt, player.position, colliders, raycastMeshes, {
       onPlayerHit: (dmg) => player.takeDamage(dmg),
+      onSuppressed: () => player.applySpeedDebuff(0.55, 1.6),
     });
 
     grenadeManager.update(dt, colliders, arenaHalf, {
@@ -324,6 +525,7 @@ function tick(now) {
     });
 
     pickupManager.update(dt, player.position, handlePickup);
+    minimap.draw(player, enemyManager, arenaHalf);
 
     // camera shake decay
     if (shakeTime > 0) {

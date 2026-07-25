@@ -96,7 +96,7 @@ function addBoundaryWalls(env, colliders, raycastMeshes, wallMat, half = ARENA_H
     wall.castShadow = true;
     wall.receiveShadow = true;
     env.add(wall);
-    colliders.push(new THREE.Box3().setFromObject(wall));
+    colliders.push({ box: new THREE.Box3().setFromObject(wall), vaultable: false });
     raycastMeshes.push(wall);
   }
 
@@ -145,7 +145,7 @@ export function buildArena(scene) {
       crate.castShadow = true;
       crate.receiveShadow = true;
       env.add(crate);
-      colliders.push(new THREE.Box3().setFromObject(crate));
+      colliders.push({ box: new THREE.Box3().setFromObject(crate), vaultable: true });
       raycastMeshes.push(crate);
     },
   });
@@ -178,7 +178,7 @@ function buildTree(x, z, env, colliders, raycastMeshes) {
   canopy2.castShadow = true;
   env.add(canopy2);
 
-  colliders.push(new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(x, 1, z), new THREE.Vector3(0.8, 2, 0.8)));
+  colliders.push({ box: new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(x, 1, z), new THREE.Vector3(0.8, 2, 0.8)), vaultable: false });
   raycastMeshes.push(trunk, canopy);
 }
 
@@ -195,7 +195,7 @@ function buildRock(x, z, env, colliders, raycastMeshes, palette) {
   rock.receiveShadow = true;
   env.add(rock);
 
-  colliders.push(new THREE.Box3().setFromObject(rock));
+  colliders.push({ box: new THREE.Box3().setFromObject(rock), vaultable: true });
   raycastMeshes.push(rock);
 }
 
@@ -250,7 +250,7 @@ function buildPalm(x, z, env, colliders, raycastMeshes) {
     env.add(frond);
   }
 
-  colliders.push(new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(x, 1, z), new THREE.Vector3(0.6, 2, 0.6)));
+  colliders.push({ box: new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(x, 1, z), new THREE.Vector3(0.6, 2, 0.6)), vaultable: false });
   raycastMeshes.push(trunk);
 }
 
