@@ -7,7 +7,7 @@ step, no backend — pure static files, playable straight from GitHub Pages.
 
 ## What it is
 A first-person shooter in the spirit of modern arcade shooters (weapon
-switching, sprint/jump, wave-based enemy escalation) rendered with a
+switching, sprint/jump, ADS, wave-based enemy escalation) rendered with a
 low-poly voxel art style. The 3D scene is rendered at a reduced internal
 resolution and scaled up with nearest-neighbor filtering — a classic
 retro/PS1-era trick that gives full 3D geometry a chunky, pixelated look
@@ -27,25 +27,48 @@ without needing pixel-art textures or sprites.
 | W A S D | Move |
 | Mouse | Look (click to lock pointer) |
 | Left click | Fire |
+| Right click | Aim down sights |
 | R | Reload |
-| 1 / 2 / 3 | Switch weapon (Pistol / Rifle / Shotgun) |
+| G | Throw grenade |
+| 1 / 2 / 3 / 4 | Switch weapon (Pistol / Rifle / Shotgun / Sniper) |
 | Shift | Sprint |
 | Space | Jump |
 | Esc | Pause |
 
+## Features
+- **3 maps** — Compound, Jungle, and Beach Assault, each with a distinct
+  environment builder (rocks, trees/palms, sand, water) and its own
+  collision + line-of-sight geometry.
+- **4 weapons** with distinct voxel models, damage, fire rate, spread, and
+  per-weapon effective range with damage falloff beyond it. Sniper is a
+  slow, near-zero-spread one/two-shot weapon with a scoped ADS view;
+  shotgun trades range for close-quarters burst damage.
+- **Aim down sights** (right click) narrows FOV, tightens spread, and — for
+  the sniper — shows a scope overlay.
+- **Three enemy types**: melee grunts, ranged riflemen that hold distance
+  and strafe, and flying drones. Ranged enemies raycast for real line of
+  sight before firing — they can't shoot through walls, rocks, or trees.
+- **Grenades**: arcing throw with gravity and bounce, timed fuse, and area
+  damage to both enemies and the player if caught in the blast.
+- **Health regen** after a few seconds without taking damage, plus
+  health/ammo/grenade pickups that spawn periodically during a run.
+- **Camera shake** on explosions and taking damage.
+
 ## Structure
 ```
-index.html         Menu / HUD / game-over screens + canvas mount
-css/style.css       All UI styling
-js/main.js          Game state machine + render loop
-js/scene.js         Renderer (pixelation), lighting, arena environment
-js/player.js        Pointer-lock look, movement, collision
-js/weapons.js       Weapon definitions, raycasting, ammo/reload
-js/enemies.js       Enemy AI + wave spawner
-js/hud.js           DOM HUD updates
-js/audio.js         Synthesized SFX
-js/storage.js       IndexedDB high-score persistence
-js/utils.js         Shared math + voxel character builder
+index.html          Menu / level-select / HUD / game-over screens
+css/style.css        All UI styling
+js/main.js           Game state machine + render loop + input wiring
+js/scene.js          Renderer (pixelation), lighting, 3 level builders
+js/player.js         Pointer-lock look, movement, collision, health regen
+js/weapons.js        Weapon defs, per-weapon models, raycasting, ADS
+js/enemies.js        Enemy types + AI (melee/ranged/flying) + LOS checks
+js/grenades.js       Grenade physics, bounce, AoE explosion
+js/pickups.js        Health/ammo/grenade pickup spawner
+js/hud.js            DOM HUD updates
+js/audio.js          Synthesized SFX
+js/storage.js        IndexedDB high-score persistence
+js/utils.js          Shared math + voxel character/drone builders
 ```
 
 ## Local development

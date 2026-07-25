@@ -41,6 +41,19 @@
   </div>
 </section>
 
+<!-- ============ LEVEL SELECT ============ -->
+<section id="screen-levels" class="screen hidden">
+  <div class="menu-panel">
+    <h2 class="panel-title">Choose Deployment</h2>
+    <div class="menu-actions">
+      <button class="btn btn-primary level-btn" data-level="compound">Compound</button>
+      <button class="btn level-btn" data-level="jungle">Jungle</button>
+      <button class="btn level-btn" data-level="beach">Beach Assault</button>
+    </div>
+    <button class="btn back-btn" data-back="menu">Back</button>
+  </div>
+</section>
+
 <!-- ============ HOW TO PLAY ============ -->
 <section id="screen-howto" class="screen hidden">
   <div class="menu-panel">
@@ -49,13 +62,15 @@
       <li><span class="key">W A S D</span> Move</li>
       <li><span class="key">MOUSE</span> Look</li>
       <li><span class="key">LEFT CLICK</span> Fire</li>
+      <li><span class="key">RIGHT CLICK</span> Aim down sights</li>
       <li><span class="key">R</span> Reload</li>
-      <li><span class="key">1 2 3</span> Switch weapon</li>
+      <li><span class="key">G</span> Throw grenade</li>
+      <li><span class="key">1 2 3 4</span> Switch weapon</li>
       <li><span class="key">SHIFT</span> Sprint</li>
       <li><span class="key">SPACE</span> Jump</li>
       <li><span class="key">ESC</span> Pause</li>
     </ul>
-    <p class="panel-copy">Survive escalating waves of hostiles. Kills and wave depth score points. Click Start, then click the screen once to lock your mouse and begin.</p>
+    <p class="panel-copy">Survive escalating waves of hostiles — some shoot back. Health regenerates after a few seconds without damage; medkits, ammo, and grenade pickups also spawn during a run. Click Start, then click the screen once to lock your mouse and begin.</p>
     <button class="btn btn-primary back-btn" data-back="menu">Back</button>
   </div>
 </section>
@@ -111,6 +126,9 @@
     <span></span><span></span><span></span><span></span>
   </div>
 
+  <div id="scope-overlay" class="scope-overlay hidden"></div>
+  <div id="toast-container" class="toast-container"></div>
+
   <div id="damage-flash" class="damage-flash"></div>
 
   <div class="hud-bottom">
@@ -119,6 +137,7 @@
       <div class="bar health-bar"><div id="health-fill" class="bar-fill health-fill"></div></div>
     </div>
     <div class="hud-weapon">
+      <div class="hud-grenades">GRENADES <span id="grenade-count">3</span></div>
       <div id="weapon-name" class="weapon-name">PISTOL</div>
       <div id="weapon-ammo" class="weapon-ammo">— / —</div>
     </div>

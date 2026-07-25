@@ -26,6 +26,9 @@ export class Player {
     this.health = 100;
     this.maxHealth = 100;
     this.alive = true;
+    this.timeSinceDamage = 999;
+    this.regenDelay = 4.5;
+    this.regenRate = 12; // hp per second
 
     this._onMouseMove = this._onMouseMove.bind(this);
     this._onKeyDown = this._onKeyDown.bind(this);
@@ -74,6 +77,7 @@ export class Player {
 
   takeDamage(amount) {
     if (!this.alive) return;
+    this.timeSinceDamage = 0;
     this.health = clamp(this.health - amount, 0, this.maxHealth);
     if (this.health <= 0) this.alive = false;
     if (this.onDamage) this.onDamage(amount);
@@ -90,10 +94,18 @@ export class Player {
     this.alive = true;
     this.yaw = 0;
     this.pitch = 0;
+    this.timeSinceDamage = 999;
   }
 
   update(dt, colliders, arenaHalf) {
-    if (!this.locked || !this.alive) return;
+    if (!this.alive) return;
+
+    this.timeSinceDamage += dt;
+    if (this.timeSinceDamage > this.regenDelay && this.health < this.maxHealth) {
+      this.heal(this.regenRate * dt);
+    }
+
+    if (!this.locked) return;
 
     this.camera.rotation.order = "YXZ";
     this.camera.rotation.y = this.yaw;

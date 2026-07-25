@@ -8,6 +8,9 @@ const el = {
   hitmarker: document.getElementById("hitmarker"),
   damageFlash: document.getElementById("damage-flash"),
   lockHint: document.getElementById("lock-hint"),
+  grenadeCount: document.getElementById("grenade-count"),
+  scopeOverlay: document.getElementById("scope-overlay"),
+  toastContainer: document.getElementById("toast-container"),
 };
 
 let hitmarkerTimeout = null;
@@ -54,4 +57,28 @@ export function flashDamage() {
 export function setLockHint(visible, text) {
   el.lockHint.classList.toggle("hidden", !visible);
   if (text) el.lockHint.textContent = text;
+}
+
+export function updateGrenades(count) {
+  if (el.grenadeCount) el.grenadeCount.textContent = count;
+}
+
+export function setScoped(isScoped) {
+  el.scopeOverlay?.classList.toggle("hidden", !isScoped);
+}
+
+const TOAST_LABELS = {
+  health: "+25 HP",
+  ammo: "+AMMO",
+  grenade: "+1 GRENADE",
+};
+
+export function showPickupToast(type) {
+  if (!el.toastContainer) return;
+  const toast = document.createElement("div");
+  toast.className = "pickup-toast";
+  toast.textContent = TOAST_LABELS[type] || "PICKUP";
+  el.toastContainer.appendChild(toast);
+  setTimeout(() => toast.classList.add("rise"), 10);
+  setTimeout(() => toast.remove(), 1400);
 }

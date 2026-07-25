@@ -71,6 +71,62 @@ export function buildVoxelSoldier({ bodyColor = 0x4a5d3a, skinColor = 0xd8a878, 
   };
 }
 
+// Attaches a small blocky rifle to a soldier's right arm (used for ranged enemies).
+export function attachEnemyGun(rightArm) {
+  const gunMat = new THREE.MeshLambertMaterial({ color: 0x1c1c1c });
+  const gun = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.42), gunMat);
+  gun.position.set(0.1, -0.55, -0.18);
+  rightArm.add(gun);
+  return gun;
+}
+
+// Builds a small hovering combat drone: body + four rotor arms + a blinking light.
+export function buildDrone() {
+  const group = new THREE.Group();
+  const bodyMat = new THREE.MeshLambertMaterial({ color: 0x3a3d42 });
+  const armMat = new THREE.MeshLambertMaterial({ color: 0x1e1f22 });
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.22, 0.5), bodyMat);
+  group.add(body);
+
+  const gunMat = new THREE.MeshLambertMaterial({ color: 0x151515 });
+  const gun = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.4), gunMat);
+  gun.position.set(0, -0.14, 0.35);
+  group.add(gun);
+
+  const armOffsets = [
+    [0.4, 0, 0.4],
+    [-0.4, 0, 0.4],
+    [0.4, 0, -0.4],
+    [-0.4, 0, -0.4],
+  ];
+  const rotors = [];
+  armOffsets.forEach(([x, y, z]) => {
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.5, 5), armMat);
+    arm.rotation.z = Math.PI / 2;
+    arm.position.set(x * 0.5, 0.02, z * 0.5);
+    group.add(arm);
+
+    const rotor = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.03, 8), armMat);
+    rotor.position.set(x, 0.08, z);
+    group.add(rotor);
+    rotors.push(rotor);
+  });
+
+  const light = new THREE.PointLight(0xff3030, 0.6, 2.5);
+  light.position.set(0, -0.1, 0.28);
+  group.add(light);
+
+  group.traverse((obj) => {
+    if (obj.isMesh) {
+      obj.castShadow = true;
+      obj.receiveShadow = true;
+    }
+  });
+
+  return { group, gun, rotors, light };
+}
+
 // Simple 2D circle-vs-box collision resolution used for arena obstacles.
 export function resolveCircleBoxCollision(pos, radius, box) {
   const closestX = clamp(pos.x, box.min.x, box.max.x);

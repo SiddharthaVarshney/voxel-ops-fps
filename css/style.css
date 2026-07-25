@@ -340,6 +340,55 @@ html, body {
 
 .hud-weapon { text-align: right; }
 
+.hud-grenades {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #ccc;
+  margin-bottom: 4px;
+}
+
+.hud-grenades span {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.scope-overlay {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, transparent 0, transparent 22%, #000 22.6%);
+  pointer-events: none;
+}
+
+.toast-container {
+  position: absolute;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.pickup-toast {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  color: var(--ok);
+  background: rgba(0,0,0,0.5);
+  padding: 6px 12px;
+  border: 1px solid var(--ok);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.pickup-toast.rise {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .weapon-name {
   font-size: 14px;
   letter-spacing: 1px;
