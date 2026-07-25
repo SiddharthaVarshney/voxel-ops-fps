@@ -25,9 +25,14 @@
   <canvas id="game-canvas"></canvas>
 </div>
 
+<div id="rotate-prompt" class="rotate-prompt hidden">
+  <div class="rotate-icon">⟳</div>
+  <p>Rotate your device to landscape to play</p>
+</div>
+
 <!-- ============ MAIN MENU ============ -->
 <section id="screen-menu" class="screen">
-  <img class="menu-hero-art" src="assets/sprites/drake_portrait.png" alt="" aria-hidden="true">
+  <img class="menu-hero-art" src="assets/sprites/aman_hero_portrait.png" alt="" aria-hidden="true">
   <div class="menu-panel">
     <h1 class="title">VOXEL<span class="title-accent">OPS</span></h1>
     <p class="subtitle">pixelated 3D wave-survival shooter</p>
@@ -79,12 +84,12 @@
       <li><span class="key">1 2 3 4 5</span> Switch weapon</li>
       <li><span class="key">SHIFT</span> Sprint</li>
       <li><span class="key">SPACE</span> Jump</li>
-      <li><span class="key">N</span> Nuke (one-time use)</li>
+      <li><span class="key">N</span> Nuke (3 per mission)</li>
       <li><span class="key">M</span> Toggle map</li>
       <li><span class="key">V</span> Toggle 1st/3rd person</li>
       <li><span class="key">ESC</span> Pause</li>
     </ul>
-    <p class="panel-copy">Survive escalating waves of hostiles — some shoot back, some fly, some carry shields you'll need to flank. Walk into low crates or rocks to automatically climb onto them. Health regenerates after a few seconds without damage; medkits, ammo, and grenade pickups also spawn during a run. The nuke is a single-use panic button that clears every enemy on the map. Click Start, then click the screen once to lock your mouse and begin.</p>
+    <p class="panel-copy">Survive escalating waves of hostiles — some shoot back, some fly, some carry shields you'll need to flank. Walk into low crates or rocks to automatically climb onto them. Health regenerates after a few seconds without damage; medkits, ammo, and grenade pickups also spawn during a run. You carry 3 nukes — each clears every enemy on the map. Click Start, then click the screen once to lock your mouse and begin.</p>
     <button class="btn btn-primary back-btn" data-back="menu">Back</button>
   </div>
 </section>
@@ -161,7 +166,7 @@
     <div class="hud-weapon">
       <div class="hud-row-mini">
         <div class="hud-grenades">GRENADES <span id="grenade-count">3</span></div>
-        <div id="nuke-icon" class="nuke-icon" title="Nuke (N)">☢</div>
+        <div id="nuke-icon" class="nuke-icon" title="Nuke (N)">☢<span id="nuke-count">3</span></div>
       </div>
       <div id="weapon-name" class="weapon-name">PISTOL</div>
       <div id="weapon-ammo" class="weapon-ammo">— / —</div>
@@ -173,6 +178,7 @@
 
   <!-- ============ MOBILE TOUCH CONTROLS ============ -->
   <div id="mobile-controls" class="mobile-controls">
+
     <div id="look-zone" class="look-zone"></div>
 
     <div id="joystick-base" class="joystick-base">

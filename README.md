@@ -35,7 +35,7 @@ Doom-style billboard technique.
 | Right click | Aim down sights |
 | R | Reload |
 | G | Throw grenade |
-| N | Nuke (single-use) |
+| N | Nuke (3 per mission) |
 | M | Toggle minimap |
 | V | Toggle 1st / 3rd person view |
 | 1 / 2 / 3 / 4 / 5 | Switch weapon (Pistol / Rifle / Shotgun / Sniper / Knife) |
@@ -73,7 +73,7 @@ reload/grenade/nuke/map/view/pause/weapon-switch.
   appears.
 - **Grenades**: arcing throw with gravity/bounce, timed fuse, AoE damage
   to enemies and the player, flying debris particles, screen shake.
-- **Nuke**: one-time-use panic button that instantly clears every enemy
+- **Nuke**: carry 3 per mission — each instantly clears every enemy
   on the map, with a full screen flash and heavy shake.
 - **Minimap**: toggleable radar showing your facing, enemies by type, and
   telegraphed spawn points.
@@ -81,6 +81,8 @@ reload/grenade/nuke/map/view/pause/weapon-switch.
   health/ammo/grenade pickups.
 - **Mobile-first input layer**: touch joystick + look-drag + button HUD,
   automatically swapped in on touch devices — no Pointer Lock dependency.
+  Landscape orientation is enforced with a rotate prompt, since the touch
+  layout is designed for landscape only.
 
 ## Structure
 ```

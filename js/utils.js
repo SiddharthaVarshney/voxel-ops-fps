@@ -28,6 +28,17 @@ export function buildVoxelSoldier({ bodyColor = 0x4a5d3a, skinColor = 0xd8a878, 
   head.position.y = 1.6;
   group.add(head);
 
+  // Simple face: two eyes + a mouth line, thin boxes flush against the front of the head.
+  const eyeMat = new THREE.MeshLambertMaterial({ color: 0x1a1410 });
+  const eyeGeo = new THREE.BoxGeometry(0.06, 0.06, 0.02);
+  const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+  leftEye.position.set(-0.09, 1.63, -0.19);
+  const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+  rightEye.position.set(0.09, 1.63, -0.19);
+  const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.035, 0.02), eyeMat);
+  mouth.position.set(0, 1.5, -0.19);
+  group.add(leftEye, rightEye, mouth);
+
   const helmet = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.16, 0.4), mat(0x2e321f));
   helmet.position.y = 1.82;
   group.add(helmet);
@@ -91,7 +102,7 @@ export function buildDrone() {
 
   const gunMat = new THREE.MeshLambertMaterial({ color: 0x151515 });
   const gun = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.4), gunMat);
-  gun.position.set(0, -0.14, 0.35);
+  gun.position.set(0, -0.14, -0.35);
   group.add(gun);
 
   const armOffsets = [
@@ -114,7 +125,7 @@ export function buildDrone() {
   });
 
   const light = new THREE.PointLight(0xff3030, 0.6, 2.5);
-  light.position.set(0, -0.1, 0.28);
+  light.position.set(0, -0.1, -0.28);
   group.add(light);
 
   group.traverse((obj) => {
@@ -206,8 +217,8 @@ export function buildDirectionalBillboard(urls, heightUnits = 2.6) {
   // viewerPos: world position of the camera/player.
   // entityPos: world position of the entity (group.position).
   function updateFacing(facingAngle, viewerPos, entityPos) {
-    const fx = Math.sin(facingAngle);
-    const fz = Math.cos(facingAngle);
+    const fx = -Math.sin(facingAngle);
+    const fz = -Math.cos(facingAngle);
     let tx = viewerPos.x - entityPos.x;
     let tz = viewerPos.z - entityPos.z;
     const len = Math.hypot(tx, tz) || 1;

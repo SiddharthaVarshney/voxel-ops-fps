@@ -124,7 +124,7 @@ export class Enemy {
 
     let dmg = amount;
     if (this.type === "shield_trooper" && hitOrigin) {
-      const forward = new THREE.Vector3(Math.sin(this.facingAngle), 0, Math.cos(this.facingAngle));
+      const forward = new THREE.Vector3(-Math.sin(this.facingAngle), 0, -Math.cos(this.facingAngle));
       const toShooter = hitOrigin.clone().sub(this.position);
       toShooter.y = 0;
       toShooter.normalize();
@@ -257,7 +257,7 @@ export class Enemy {
     const dist = distance2D(this.position, playerPos);
     const dx = playerPos.x - this.position.x;
     const dz = playerPos.z - this.position.z;
-    this.group.rotation.y = Math.atan2(dx, dz);
+    this.group.rotation.y = Math.atan2(-dx, -dz);
     this.group.position.y = DRONE_HEIGHT + Math.sin(this.walkPhase) * 0.15;
     this.walkPhase += dt * 2;
     this.rotors?.forEach((r) => { r.rotation.y += dt * 40; });
@@ -324,7 +324,7 @@ export class Enemy {
   _faceTarget(target, turnRate, dt) {
     const dx = target.x - this.position.x;
     const dz = target.z - this.position.z;
-    const desired = Math.atan2(dx, dz);
+    const desired = Math.atan2(-dx, -dz);
     if (turnRate >= 999) {
       this.facingAngle = desired;
     } else {

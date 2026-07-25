@@ -494,6 +494,7 @@ html, body {
 }
 
 .nuke-icon {
+  position: relative;
   width: 22px;
   height: 22px;
   display: flex;
@@ -506,10 +507,33 @@ html, body {
   background: rgba(124, 252, 0, 0.08);
 }
 
+.nuke-icon #nuke-count {
+  position: absolute;
+  bottom: -6px;
+  right: -6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--ink);
+  color: var(--ok);
+  border: 1px solid var(--ok);
+  border-radius: 50%;
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .nuke-icon.used {
   color: #555;
   border-color: #444;
   background: transparent;
+}
+
+.nuke-icon.used #nuke-count {
+  color: #555;
+  border-color: #444;
 }
 
 .nuke-flash {
@@ -714,4 +738,37 @@ body.touch-device .lock-hint { display: none; }
   background: var(--accent);
   color: #1a1a1a;
   border-color: var(--accent);
+}
+
+/* ---------------- Landscape orientation prompt ---------------- */
+.rotate-prompt {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: #0a0a0a;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  text-align: center;
+  padding: 32px;
+}
+
+.rotate-prompt .rotate-icon {
+  font-size: 48px;
+  color: var(--accent);
+  animation: rotateSpin 1.6s ease-in-out infinite;
+}
+
+@keyframes rotateSpin {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(90deg); }
+}
+
+.rotate-prompt p {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 14px;
+  color: #ddd;
+  max-width: 260px;
 }

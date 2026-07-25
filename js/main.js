@@ -96,7 +96,7 @@ let score = 0;
 let kills = 0;
 let grenadeCount = 3;
 let waveTransitionTimer = 0;
-let nukeAvailable = true;
+let nukeCount = 3;
 
 // simple camera shake state
 let shakeTime = 0;
@@ -179,8 +179,9 @@ function startGame(levelId) {
   score = 0;
   kills = 0;
   grenadeCount = 3;
-  nukeAvailable = true;
+  nukeCount = 3;
   document.getElementById("nuke-icon").classList.remove("used");
+  document.getElementById("nuke-count").textContent = nukeCount;
   aiming = false;
   camera.fov = BASE_FOV;
   camera.updateProjectionMatrix();
@@ -351,9 +352,10 @@ function throwGrenade() {
 }
 
 function useNuke() {
-  if (!nukeAvailable || !player.locked) return;
-  nukeAvailable = false;
-  document.getElementById("nuke-icon").classList.add("used");
+  if (nukeCount <= 0 || !player.locked) return;
+  nukeCount--;
+  document.getElementById("nuke-count").textContent = nukeCount;
+  if (nukeCount <= 0) document.getElementById("nuke-icon").classList.add("used");
 
   for (const enemy of enemyManager.enemies) {
     if (enemy.state !== "alive") continue;
@@ -542,6 +544,18 @@ if (isTouchDevice) {
       if (gameState === "playing") weapons.switchTo(parseInt(btn.dataset.weapon, 10));
     }, { passive: false });
   });
+
+  // Landscape orientation enforcement — FPS controls need width, and the
+  // touch layout (joystick + buttons) is designed for landscape only.
+  const rotatePrompt = document.getElementById("rotate-prompt");
+  function checkOrientation() {
+    const isPortrait = window.innerHeight > window.innerWidth;
+    rotatePrompt.classList.toggle("hidden", !isPortrait);
+    if (isPortrait && gameState === "playing") pauseGame();
+  }
+  window.addEventListener("resize", checkOrientation);
+  window.addEventListener("orientationchange", checkOrientation);
+  checkOrientation();
 }
 
 // ---------------- Game loop ----------------
