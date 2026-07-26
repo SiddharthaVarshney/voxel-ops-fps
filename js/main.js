@@ -106,7 +106,7 @@ let score = 0;
 let kills = 0;
 let grenadeCount = 3;
 let waveTransitionTimer = 0;
-let nukeCount = 3;
+let nukeCount = 10;
 
 // simple camera shake state
 let shakeTime = 0;
@@ -189,7 +189,7 @@ function startGame(levelId) {
   score = 0;
   kills = 0;
   grenadeCount = 3;
-  nukeCount = 3;
+  nukeCount = 10;
   document.getElementById("nuke-icon").classList.remove("used");
   document.getElementById("nuke-count").textContent = nukeCount;
   aiming = false;

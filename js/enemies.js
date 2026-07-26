@@ -492,6 +492,9 @@ export class EnemyManager {
 
   _pickType() {
     const roll = Math.random();
+    // rare early cameo — he shows up properly from wave 5+ (below), this is
+    // just an occasional early taste of him before that
+    if (this.wave >= 2 && this.wave <= 3 && roll < 0.04) return "veer";
     if (this.wave >= 5 && roll < 0.08) return "veer";
     if (this.wave >= 4 && roll < 0.18) return "mutant_brute";
     if (this.wave >= 4 && roll < 0.34) return "flamethrower";
