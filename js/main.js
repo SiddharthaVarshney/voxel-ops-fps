@@ -714,9 +714,13 @@ function tick(now) {
     }
 
     enemyManager.update(dt, player.position, colliders, raycastMeshes, {
-      onPlayerHit: (dmg) => player.takeDamage(dmg),
+      onPlayerHit: (dmg, sourcePos) => player.takeDamage(dmg, sourcePos),
       onSuppressed: () => player.applySpeedDebuff(0.55, 1.6),
+      onEnemyThrowGrenade: (pos, dir) => grenadeManager.throwGrenade(pos, dir),
     });
+    if (enemyManager.consumeVeerSpawnFlag()) {
+      hud.showWaveBanner("⚠ SHADOW LEGION OPERATIVE", "VEER — \"STRIPES\" HAS ENTERED", 2200);
+    }
 
     grenadeManager.update(dt, colliders, arenaHalf, {
       enemies: enemyManager.enemies,

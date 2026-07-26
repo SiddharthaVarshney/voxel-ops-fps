@@ -12,6 +12,7 @@ import {
   resolveCircleBoxCollision,
   clamp,
 } from "./utils.js";
+import { buildVeer } from "./veer.js";
 import { playEnemyDeath } from "./audio.js";
 
 const ENEMY_RADIUS = 0.35;
@@ -40,6 +41,20 @@ const DRONE_HIT_CHANCE = 0.45;
 
 const SHIELD_TURN_RATE = 2.0; // rad/sec — limited, so flanking is possible
 const SHIELD_DAMAGE_REDUCTION = 0.82;
+
+// Veer — boss-tier rival operative. Ranged like rifleman/heavy_gunner but
+// engages at longer range, fires in bursts, and periodically throws a real
+// physics grenade (routed through the shared GrenadeManager via callbacks).
+// Turn rate is limited like shield_trooper's, for the same reason: a
+// deliberate, learnable flanking counter instead of instant snap-aim.
+const VEER_MIN_DIST = 9;
+const VEER_MAX_DIST = 16;
+const VEER_TURN_RATE = 3.5;
+const VEER_BURST_SHOTS = 3;
+const VEER_BURST_INTERVAL = 0.16;
+const VEER_BURST_COOLDOWN = 2.2;
+const VEER_HIT_CHANCE = 0.6;
+const VEER_THROW_DURATION = 1.3;
 
 const SPAWN_TELEGRAPH_TIME = 1.0;
 
@@ -103,6 +118,18 @@ export class Enemy {
       this.flameCone.position.set(0, 1.1, -FLAME_RANGE / 2);
       this.flameCone.visible = false;
       this.group.add(this.flameCone);
+    } else if (type === "veer") {
+      const built = buildVeer();
+      this.group = built.group;
+      this.veer = built;
+      this._pendingGrenade = null;
+      this.veer.onGrenadeRelease = (pos, dir) => { this._pendingGrenade = { pos, dir }; };
+      this.group.position.copy(position);
+      this.veerBurstTimer = rand(1, 2.5);
+      this.veerGrenadeTimer = rand(4, 7);
+      this.veerShotsLeftInBurst = 0;
+      this.veerShotTimer = 0;
+      this.veerThrowLock = 0;
     } else {
       const isElite = health > 60;
       const built = buildVoxelSoldier({
@@ -192,6 +219,8 @@ export class Enemy {
       this._updateShieldTrooper(dt, playerPos, colliders, callbacks);
     } else if (this.type === "flamethrower") {
       this._updateFlamethrower(dt, playerPos, colliders, blockerMeshes, callbacks);
+    } else if (this.type === "veer") {
+      this._updateVeer(dt, playerPos, colliders, blockerMeshes, callbacks);
     }
   }
 
@@ -321,6 +350,60 @@ export class Enemy {
     }
   }
 
+  _updateVeer(dt, playerPos, colliders, blockerMeshes, callbacks) {
+    const dist = distance2D(this.position, playerPos);
+    this._faceTarget(playerPos, VEER_TURN_RATE, dt);
+    const hasLOS = this._hasLineOfSight(playerPos, blockerMeshes);
+
+    if (this.veerThrowLock > 0) {
+      // mid-throw: hold the animation to completion before anything else can interrupt it
+      this.veerThrowLock -= dt;
+      this.veer.setState("throw");
+    } else if (dist < VEER_MIN_DIST) {
+      this._moveAway(playerPos, this.speed, dt);
+      this.veer.setState("walk");
+    } else if (dist > VEER_MAX_DIST || !hasLOS) {
+      this._moveToward(playerPos, this.speed, dt);
+      this.veer.setState("walk");
+    } else {
+      this.veerGrenadeTimer -= dt;
+      this.veerBurstTimer -= dt;
+
+      if (this.veerGrenadeTimer <= 0) {
+        this.veerThrowLock = VEER_THROW_DURATION;
+        this.veer.setState("throw");
+        this.veerGrenadeTimer = rand(7, 11);
+        this.veerBurstTimer = Math.max(this.veerBurstTimer, 1.2); // don't also open fire the instant the throw ends
+      } else if (this.veerShotsLeftInBurst > 0) {
+        this.veer.setState("fire");
+        this.veerShotTimer -= dt;
+        if (this.veerShotTimer <= 0) {
+          this.veerShotTimer = VEER_BURST_INTERVAL;
+          this.veerShotsLeftInBurst--;
+          this.veer.fireShot();
+          const from = this.position.clone();
+          from.y += 1.3;
+          const hit = Math.random() < VEER_HIT_CHANCE;
+          callbacks?.onRangedAttack?.(hit ? this.damage : 0, from, playerPos.clone(), false);
+        }
+      } else if (this.veerBurstTimer <= 0) {
+        this.veerBurstTimer = VEER_BURST_COOLDOWN;
+        this.veerShotsLeftInBurst = VEER_BURST_SHOTS;
+        this.veer.setState("aim");
+      } else {
+        this.veer.setState("aim");
+      }
+    }
+
+    for (const c of colliders) resolveCircleBoxCollision(this.position, ENEMY_RADIUS, c.box);
+    this.veer.update(dt);
+
+    if (this._pendingGrenade) {
+      callbacks?.onEnemyThrowGrenade?.(this._pendingGrenade.pos, this._pendingGrenade.dir);
+      this._pendingGrenade = null;
+    }
+  }
+
   _faceTarget(target, turnRate, dt) {
     const dx = target.x - this.position.x;
     const dz = target.z - this.position.z;
@@ -376,6 +459,7 @@ export class EnemyManager {
     this.tracers = [];
     this.pendingSpawns = []; // telegraphed spawns not yet materialized
     this.difficultyMult = { health: 1, damage: 1, spawnRate: 1 };
+    this._veerJustSpawned = false;
   }
 
   reset() {
@@ -388,6 +472,7 @@ export class EnemyManager {
     this.wave = 0;
     this.spawnQueue = 0;
     this.spawnTimer = 0;
+    this._veerJustSpawned = false;
   }
 
   startNextWave() {
@@ -407,6 +492,7 @@ export class EnemyManager {
 
   _pickType() {
     const roll = Math.random();
+    if (this.wave >= 5 && roll < 0.08) return "veer";
     if (this.wave >= 4 && roll < 0.18) return "mutant_brute";
     if (this.wave >= 4 && roll < 0.34) return "flamethrower";
     if (this.wave >= 3 && roll < 0.5) return "drone";
@@ -421,6 +507,9 @@ export class EnemyManager {
     const dm = this.difficultyMult;
     let base;
     switch (type) {
+      case "veer":
+        base = { health: 220 + w * 12, speed: clamp(1.5 + w * 0.04, 1.5, 2.1), damage: 12 + Math.floor(w / 2) };
+        break;
       case "mutant_brute":
         base = { health: 140 + w * 10, speed: clamp(1.3 + w * 0.05, 1.3, 2.4), damage: 16 + Math.floor(w / 2) };
         break;
@@ -475,6 +564,15 @@ export class EnemyManager {
     this.enemies.push(enemy);
     this.scene.add(enemy.group);
     this.scene.remove(p.ring);
+    if (p.type === "veer") this._veerJustSpawned = true;
+  }
+
+  // One-shot flag consumed by main.js to trigger a boss-arrival banner exactly
+  // once per spawn, without EnemyManager needing to know about the HUD at all.
+  consumeVeerSpawnFlag() {
+    const flag = this._veerJustSpawned;
+    this._veerJustSpawned = false;
+    return flag;
   }
 
   _addTracer(from, to) {
@@ -517,6 +615,7 @@ export class EnemyManager {
           }
         },
         onFlameTick: (dmg) => callbacks?.onPlayerHit?.(dmg, enemy.position),
+        onEnemyThrowGrenade: (pos, dir) => callbacks?.onEnemyThrowGrenade?.(pos, dir),
       });
     }
 
