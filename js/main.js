@@ -16,8 +16,9 @@ import { PickupManager } from "./pickups.js";
 import { buildVoxelSoldier, attachEnemyGun } from "./utils.js";
 import * as hud from "./hud.js";
 import { Minimap } from "./minimap.js";
-import { saveScore, getTopScores, isNewHighScore } from "./storage.js";
-import { playWaveStart, playPlayerHurt, playNukeBoom } from "./audio.js";
+import { saveScore, getTopScores, isNewHighScore, clearScores } from "./storage.js";
+import { getSetting, setSetting } from "./storage.js";
+import { playWaveStart, playPlayerHurt, playNukeBoom, setMasterVolume } from "./audio.js";
 
 const isTouchDevice = ("ontouchstart" in window) || navigator.maxTouchPoints > 0 || window.matchMedia("(pointer: coarse)").matches;
 if (isTouchDevice) {
@@ -30,12 +31,21 @@ const screens = {
   menu: document.getElementById("screen-menu"),
   levels: document.getElementById("screen-levels"),
   howto: document.getElementById("screen-howto"),
+  settings: document.getElementById("screen-settings"),
   scores: document.getElementById("screen-scores"),
   pause: document.getElementById("screen-pause"),
   gameover: document.getElementById("screen-gameover"),
 };
 const hudEl = document.getElementById("hud");
 const canvas = document.getElementById("game-canvas");
+
+// Renderer/module finished loading successfully - re-enable the menu that
+// was shown in a disabled "loading" state (gap #4: previously the menu
+// looked ready instantly while Three.js was still fetching over the CDN).
+screens.menu.classList.remove("loading");
+screens.menu.querySelectorAll("button").forEach((b) => (b.disabled = false));
+
+let howtoReturnTo = "menu";
 
 let gameState = "menu"; // menu | playing | paused | gameover
 
@@ -143,10 +153,10 @@ async function showScores() {
     return;
   }
   list.innerHTML = top
-    .map(
-      (s, i) =>
-        `<li><span>#${i + 1} — Wave ${s.wave}, ${s.kills} kills</span><b>${s.score}</b></li>`
-    )
+    .map((s, i) => {
+      const tag = [s.difficulty, s.level].filter(Boolean).join(" · ");
+      return `<li><span>#${i + 1} — Wave ${s.wave}, ${s.kills} kills${tag ? ` <em>(${tag})</em>` : ""}</span><b>${s.score}</b></li>`;
+    })
     .join("");
 }
 
@@ -194,13 +204,15 @@ function startGame(levelId) {
 
   const wave = enemyManager.startNextWave();
   hud.updateWave(wave);
+  hud.updateEnemyCount(enemyManager.aliveCount + enemyManager.spawnQueue + enemyManager.pendingSpawns.length);
+  refreshWeaponSlotsUI();
   playWaveStart();
 
   if (isTouchDevice) {
     player.enableTouchControl();
     hud.setLockHint(false);
   } else {
-    hud.setLockHint(true, "Click to aim");
+    hud.setLockHint(true, "Click to capture mouse");
     player.requestLock();
   }
 }
@@ -215,8 +227,15 @@ function pauseGame() {
 function resumeGame() {
   gameState = "playing";
   showScreen(null);
-  if (isTouchDevice) player.enableTouchControl();
-  else player.requestLock();
+  if (isTouchDevice) {
+    player.enableTouchControl();
+  } else {
+    // Don't call requestLock() here directly - right after an Escape-driven
+    // exit, the browser enforces a short cooldown and the request silently
+    // fails with no event at all. Show the hint and let the existing
+    // mousedown handler (which checks !player.locked) acquire it instead.
+    hud.setLockHint(true, "Click to resume aiming");
+  }
 }
 
 async function endGame() {
@@ -232,51 +251,150 @@ async function endGame() {
 
   const newHigh = await isNewHighScore(score);
   document.getElementById("new-highscore-note").classList.toggle("hidden", !newHigh);
-  await saveScore({ score, wave: enemyManager.wave, kills });
+  await saveScore({ score, wave: enemyManager.wave, kills, difficulty: currentDifficulty, level: currentLevelId });
 
   showScreen("gameover");
 }
 
 // ---------------- Input wiring ----------------
 document.getElementById("btn-play").addEventListener("click", () => showScreen("levels"));
-document.querySelectorAll(".level-btn").forEach((btn) =>
-  btn.addEventListener("click", () => startGame(btn.dataset.level))
+
+document.querySelectorAll(".level-card").forEach((card) =>
+  card.addEventListener("click", () => {
+    currentLevelId = card.dataset.level;
+    document.querySelectorAll(".level-card").forEach((c) => c.classList.remove("selected"));
+    card.classList.add("selected");
+  })
 );
+document.getElementById("btn-deploy").addEventListener("click", () => startGame(currentLevelId));
+
 document.querySelectorAll(".diff-btn").forEach((btn) =>
   btn.addEventListener("click", () => {
     currentDifficulty = btn.dataset.difficulty;
-    document.querySelectorAll(".diff-btn").forEach((b) => b.classList.remove("btn-primary"));
-    btn.classList.add("btn-primary");
+    document.querySelectorAll(".diff-btn").forEach((b) => b.classList.remove("selected"));
+    btn.classList.add("selected");
   })
 );
 document.getElementById("btn-scores").addEventListener("click", showScores);
-document.getElementById("btn-howto").addEventListener("click", () => showScreen("howto"));
+document.getElementById("btn-howto").addEventListener("click", () => {
+  howtoReturnTo = "menu";
+  showScreen("howto");
+});
+document.getElementById("btn-settings").addEventListener("click", () => showScreen("settings"));
+document.getElementById("btn-pause-howto").addEventListener("click", () => {
+  howtoReturnTo = "pause";
+  showScreen("howto");
+});
 document.querySelectorAll(".back-btn").forEach((btn) =>
-  btn.addEventListener("click", () => showScreen("menu"))
+  btn.addEventListener("click", () => {
+    if (btn.closest("#screen-howto")) {
+      showScreen(howtoReturnTo);
+      return;
+    }
+    showScreen("menu");
+  })
 );
 
+document.getElementById("btn-clear-scores").addEventListener("click", async () => {
+  await clearScores();
+  showScores();
+});
+
+// ---------------- Settings (gap #13) ----------------
+const settingSensitivity = document.getElementById("setting-sensitivity");
+const settingVolume = document.getElementById("setting-volume");
+const settingInvertY = document.getElementById("setting-invert-y");
+
+function applySensitivity(step) {
+  // step 1..10 -> a reasonable mouse-look sensitivity range
+  player.sensitivity = 0.0009 + (step - 1) * 0.00042;
+}
+
+(async () => {
+  const savedSens = await getSetting("sensitivity", 5);
+  const savedVol = await getSetting("volume", 10);
+  const savedInvert = await getSetting("invertY", false);
+  settingSensitivity.value = savedSens;
+  settingVolume.value = savedVol;
+  settingInvertY.checked = savedInvert;
+  applySensitivity(Number(savedSens));
+  setMasterVolume(Number(savedVol) / 10);
+  player.invertY = savedInvert;
+})();
+
+settingSensitivity.addEventListener("input", () => {
+  applySensitivity(Number(settingSensitivity.value));
+  setSetting("sensitivity", Number(settingSensitivity.value));
+});
+settingVolume.addEventListener("input", () => {
+  setMasterVolume(Number(settingVolume.value) / 10);
+  setSetting("volume", Number(settingVolume.value));
+});
+settingInvertY.addEventListener("change", () => {
+  player.invertY = settingInvertY.checked;
+  setSetting("invertY", settingInvertY.checked);
+});
+
 document.getElementById("btn-resume").addEventListener("click", resumeGame);
-document.getElementById("btn-quit").addEventListener("click", showMenu);
+
+// Quit needs a second tap to confirm - a mis-tap on the small pause-screen
+// button used to end the run instantly with no way back (gap #3).
+const quitBtn = document.getElementById("btn-quit");
+let quitConfirmTimeout = null;
+quitBtn.addEventListener("click", () => {
+  if (quitBtn.classList.contains("btn-confirm")) {
+    clearTimeout(quitConfirmTimeout);
+    quitBtn.classList.remove("btn-confirm");
+    quitBtn.textContent = "Quit to Menu";
+    showMenu();
+  } else {
+    quitBtn.classList.add("btn-confirm");
+    quitBtn.textContent = "Tap again to quit";
+    quitConfirmTimeout = setTimeout(() => {
+      quitBtn.classList.remove("btn-confirm");
+      quitBtn.textContent = "Quit to Menu";
+    }, 3000);
+  }
+});
+
 document.getElementById("btn-retry").addEventListener("click", () => startGame(currentLevelId));
 document.getElementById("btn-gameover-menu").addEventListener("click", showMenu);
 
 player.onLockChange = (locked) => {
   if (gameState === "playing") {
-    hud.setLockHint(!locked, "Click to aim");
+    hud.setLockHint(!locked, "Click to capture mouse");
     if (!locked) pauseGame();
   }
 };
 
-player.onDamage = () => {
+// A requestPointerLock() call can silently fail (e.g. Chrome's brief cooldown
+// right after an Escape-triggered exit) with no pointerlockchange event at
+// all - previously this left mouse look dead with zero explanation (gap #2).
+player.onLockError = () => {
+  if (gameState === "playing") hud.setLockHint(true, "Click to resume aiming");
+};
+
+player.onDamage = (amount, sourcePos) => {
   hud.flashDamage();
   playPlayerHurt();
   triggerShake(0.18, 0.06);
+  if (sourcePos) {
+    const dx = sourcePos.x - player.position.x;
+    const dz = sourcePos.z - player.position.z;
+    const worldAngle = Math.atan2(dx, dz);
+    const relative = worldAngle - player.yaw;
+    hud.flashDamageDirection(relative);
+  }
 };
 
 function triggerShake(duration, magnitude) {
   shakeTime = Math.max(shakeTime, duration);
   shakeMag = Math.max(shakeMag, magnitude);
 }
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) pauseGame();
+});
 
 document.addEventListener("keydown", (e) => {
   if (e.code === "Escape") {
@@ -290,6 +408,7 @@ document.addEventListener("keydown", (e) => {
   if (e.code === "Digit3") weapons.switchTo(2);
   if (e.code === "Digit4") weapons.switchTo(3);
   if (e.code === "Digit5") weapons.switchTo(4);
+  refreshWeaponSlotsUI();
   if (e.code === "KeyR") weapons.startReload();
   if (e.code === "KeyG") throwGrenade();
   if (e.code === "KeyN") useNuke();
@@ -336,6 +455,14 @@ function fireWeapon() {
       kills++;
       score += 100;
     }
+  });
+}
+
+function refreshWeaponSlotsUI() {
+  const slots = weapons.state.map((s) => ({ hasAmmo: s.ammoInMag > 0 || s.ammoReserve > 0 || s.ammoReserve === Infinity }));
+  hud.updateWeaponSlots(slots, weapons.index);
+  document.querySelectorAll(".touch-weapon-btn").forEach((btn) => {
+    btn.classList.toggle("active", Number(btn.dataset.weapon) === weapons.index);
   });
 }
 
@@ -541,17 +668,30 @@ if (isTouchDevice) {
   document.querySelectorAll(".touch-weapon-btn").forEach((btn) => {
     btn.addEventListener("touchstart", (e) => {
       e.preventDefault();
-      if (gameState === "playing") weapons.switchTo(parseInt(btn.dataset.weapon, 10));
+      if (gameState === "playing") {
+        weapons.switchTo(parseInt(btn.dataset.weapon, 10));
+        refreshWeaponSlotsUI();
+      }
     }, { passive: false });
   });
 
   // Landscape orientation enforcement — FPS controls need width, and the
   // touch layout (joystick + buttons) is designed for landscape only.
   const rotatePrompt = document.getElementById("rotate-prompt");
+  const pauseTitle = document.querySelector("#screen-pause .panel-title");
+  let pausedByRotation = false;
   function checkOrientation() {
     const isPortrait = window.innerHeight > window.innerWidth;
     rotatePrompt.classList.toggle("hidden", !isPortrait);
-    if (isPortrait && gameState === "playing") pauseGame();
+    if (isPortrait && gameState === "playing") {
+      pausedByRotation = true;
+      if (pauseTitle) pauseTitle.textContent = "Paused — rotate back to play";
+      pauseGame();
+    } else if (!isPortrait && pausedByRotation && gameState === "paused") {
+      pausedByRotation = false;
+      if (pauseTitle) pauseTitle.textContent = "Paused";
+      resumeGame();
+    }
   }
   window.addEventListener("resize", checkOrientation);
   window.addEventListener("orientationchange", checkOrientation);
@@ -644,18 +784,27 @@ function tick(now) {
 
     hud.updateHealth(player.health, player.maxHealth);
     hud.updateScore(score);
+    hud.updateEnemyCount(enemyManager.aliveCount + enemyManager.spawnQueue + enemyManager.pendingSpawns.length);
     hud.updateWeapon(weapons.current.name, weapons.currentState.ammoInMag, weapons.currentState.ammoReserve);
+    refreshWeaponSlotsUI();
     hud.setReloading(weapons.reloading);
+    if (weapons.reloading) {
+      hud.setReloadProgress(1 - weapons.reloadTimer / weapons.current.reloadTime);
+    }
 
     if (!player.alive) {
       endGame();
     } else if (enemyManager.waveCleared) {
+      if (waveTransitionTimer === 0) {
+        hud.showWaveBanner(`WAVE ${enemyManager.wave} CLEARED`, `+${50 * enemyManager.wave} SCORE`);
+      }
       waveTransitionTimer += dt;
       if (waveTransitionTimer > 1.5) {
         waveTransitionTimer = 0;
         score += 50 * enemyManager.wave;
         const wave = enemyManager.startNextWave();
         hud.updateWave(wave);
+        hud.showWaveBanner(`WAVE ${wave} INCOMING`);
         playWaveStart();
       }
     }

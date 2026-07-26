@@ -29,18 +29,32 @@ function openDB() {
   return dbPromise;
 }
 
-export async function saveScore({ score, wave, kills }) {
+export async function saveScore({ score, wave, kills, difficulty, level }) {
   try {
     const db = await openDB();
     return await new Promise((resolve, reject) => {
       const tx = db.transaction(SCORES_STORE, "readwrite");
       const store = tx.objectStore(SCORES_STORE);
-      store.add({ score, wave, kills, date: Date.now() });
+      store.add({ score, wave, kills, difficulty, level, date: Date.now() });
       tx.oncomplete = () => resolve(true);
       tx.onerror = () => reject(tx.error);
     });
   } catch (e) {
     console.warn("IndexedDB unavailable, score not saved locally.", e);
+    return false;
+  }
+}
+
+export async function clearScores() {
+  try {
+    const db = await openDB();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(SCORES_STORE, "readwrite");
+      tx.objectStore(SCORES_STORE).clear();
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) {
     return false;
   }
 }

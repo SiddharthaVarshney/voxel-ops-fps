@@ -106,10 +106,15 @@ html, body {
   transition: transform 0.06s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
-.btn:hover, .btn:focus-visible {
+.btn:hover {
   border-color: var(--accent);
   background: #23261f;
   transform: translateY(-1px);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--ok);
+  outline-offset: 2px;
 }
 
 .btn:active { transform: translateY(1px); }
@@ -125,7 +130,7 @@ html, body {
 .menu-footnote {
   margin-top: 18px;
   font-size: 10px;
-  color: #7a7a7a;
+  color: #9a9a9a;
 }
 
 .back-btn { margin-top: 24px; }
@@ -148,7 +153,7 @@ html, body {
 
 .key {
   font-family: 'Press Start 2P', monospace;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--accent);
 }
 
@@ -551,8 +556,41 @@ html, body {
 
 @media (max-width: 640px) {
   .menu-panel { padding: 20px 16px; }
-  .hud-health { width: 140px; }
-  .minimap { width: 110px; height: 110px; }
+}
+
+/* Landscape phones: the game forces this orientation, so a width-based
+   breakpoint never fires here (a landscape phone is wide). Key on height
+   instead, and give the touch layer a clean strip along the bottom that
+   the HUD never draws into. */
+@media (max-height: 500px) {
+  .hud-health { width: 130px; }
+  .minimap { width: 92px; height: 92px; top: 8px; right: 8px; }
+  .hud-top-left { top: 8px; left: 8px; }
+  .operator-portrait { width: 34px; height: 34px; }
+  .hud-wave, .hud-hostiles, .hud-score { font-size: 11px; padding: 3px 6px; }
+  .hud-top-left { gap: 2px; }
+  .hud-top-text { gap: 2px; }
+
+  /* The bottom edge is fully claimed by the joystick/fire button, and the
+     right edge by the minimap + ADS/JUMP column - the one genuinely free
+     strip is a horizontal band left over between the top-left stat block
+     and the touch-control row below it. Dock health + weapon info there
+     instead of at the screen edges. */
+  .hud-bottom {
+    position: fixed;
+    top: 180px;
+    bottom: auto;
+    left: 8px;
+    right: auto;
+    width: 300px;
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .hud-weapon { text-align: left; }
+  .hud-row-mini { display: none; } /* grenade/nuke counts - touch-grenade/touch-nuke buttons already cover these */
+  .weapon-name { font-size: 11px; }
+  .weapon-ammo { font-size: 15px; }
 }
 
 /* ---------------- Mobile touch controls ---------------- */
@@ -660,8 +698,8 @@ html, body {
 }
 
 .touch-btn.small {
-  width: 42px;
-  height: 42px;
+  width: 46px;
+  height: 46px;
   font-size: 15px;
 }
 
@@ -675,8 +713,8 @@ html, body {
 }
 
 .touch-weapon-btn {
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   border-radius: 6px;
   background: rgba(20,22,18,0.55);
   border: 2px solid var(--line);
@@ -687,13 +725,19 @@ html, body {
   touch-action: none;
 }
 
+.touch-weapon-btn.active {
+  border-color: var(--accent);
+  background: rgba(255,177,0,0.25);
+  color: var(--accent);
+}
+
 .touch-pause {
   position: absolute;
   top: 16px;
   left: 50%;
   transform: translateX(-50%);
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   border-radius: 6px;
   background: rgba(20,22,18,0.55);
   border: 2px solid var(--line);
@@ -702,11 +746,35 @@ html, body {
   touch-action: none;
 }
 
+/* Two-step "Quit to Menu" confirmation on the pause screen, so a stray tap
+   on a small button never silently ends a run. Toggled via JS. */
+.btn-confirm {
+  border-color: var(--danger) !important;
+  color: var(--danger) !important;
+}
+
+/* Landscape phones (short viewport, forced landscape): re-lay the touch
+   controls out so nothing overlaps the shrunk HUD from the query above. */
+@media (max-height: 500px) {
+  .touch-row-right { bottom: 150px; }
+  .touch-row-left { top: 130px; }
+  .joystick-base { bottom: 56px; left: 16px; width: 96px; height: 96px; }
+  .touch-fire { bottom: 54px; right: 20px; width: 74px; height: 74px; }
+  .touch-weapon-row { bottom: 8px; }
+  .touch-pause { top: 8px; width: 40px; height: 40px; }
+}
+
 /* On touch devices (JS-detected, see body.touch-device), give the bottom
-   HUD bars room above the joystick/fire button and hide the mouse hint. */
+   HUD bars room above the joystick/fire button and hide the mouse hint.
+   These are tuned for larger touch screens (tablets); the media query
+   below re-tunes them for landscape phones specifically. */
 body.touch-device .hud-bottom { bottom: 130px; }
 body.touch-device .minimap { top: 60px; }
 body.touch-device .lock-hint { display: none; }
+
+@media (max-height: 500px) {
+  body.touch-device .minimap { top: 8px; }
+}
 
 /* ---------------- Difficulty selector ---------------- */
 .difficulty-row {
@@ -771,4 +839,230 @@ body.touch-device .lock-hint { display: none; }
   font-size: 14px;
   color: #ddd;
   max-width: 260px;
+}
+
+/* ---------------- Menu loading state (gap #4) ---------------- */
+.menu-loading-note {
+  display: none;
+  margin-top: 14px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--accent);
+  animation: blinkscore 0.8s steps(1) infinite;
+}
+
+.screen.loading .menu-loading-note { display: block; }
+.screen.loading .btn { opacity: 0.4; cursor: not-allowed; }
+
+/* ---------------- Level select redesign (gap #9) ---------------- */
+.menu-panel-wide { max-width: 480px; }
+
+.level-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.level-card {
+  font-family: 'IBM Plex Mono', monospace;
+  text-align: left;
+  padding: 12px 14px;
+  background: #1a1c18;
+  border: 2px solid var(--line);
+  color: #eee;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.level-card:hover { border-color: var(--accent); }
+.level-card:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
+
+.level-card.selected {
+  border-color: var(--accent);
+  background: rgba(255,177,0,0.1);
+}
+
+.level-card-title {
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.level-card-desc {
+  font-size: 11px;
+  color: #9a9a9a;
+}
+
+/* ---------------- Settings screen ---------------- */
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 20px;
+  text-align: left;
+}
+
+.settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #ccc;
+}
+
+.settings-row-checkbox {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-row input[type="range"] { width: 100%; accent-color: var(--accent); }
+.settings-row input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }
+
+.btn-danger-outline {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.btn-danger-outline:hover { background: rgba(255,61,61,0.12); border-color: var(--danger); }
+
+/* ---------------- Hostiles counter ---------------- */
+.hud-hostiles {
+  font-size: 13px;
+  letter-spacing: 1px;
+  background: rgba(0,0,0,0.45);
+  padding: 6px 10px;
+  border-left: 3px solid var(--danger);
+}
+.hud-hostiles span { color: var(--danger); font-weight: 700; }
+
+/* ---------------- Wave banner (gap #7) ---------------- */
+.wave-banner {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.9);
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.wave-banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+.wave-banner-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 20px;
+  color: var(--accent);
+  text-shadow: 3px 3px 0 rgba(0,0,0,0.7);
+}
+
+.wave-banner-sub {
+  margin-top: 8px;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: #eee;
+  text-shadow: 2px 2px 0 rgba(0,0,0,0.7);
+}
+
+/* ---------------- Directional damage indicator (gap #5) ---------------- */
+.damage-direction {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.dir-wedge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 260px;
+  height: 260px;
+  margin: -130px 0 0 -130px;
+  opacity: 0;
+  background: radial-gradient(circle, transparent 55%, rgba(255,61,61,0.55) 100%);
+}
+
+.dir-wedge.show { animation: dirwedge 0.7s ease-out; }
+
+@keyframes dirwedge {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.dir-front { clip-path: polygon(50% 50%, 30% 0%, 70% 0%); }
+.dir-right { clip-path: polygon(50% 50%, 100% 30%, 100% 70%); }
+.dir-back  { clip-path: polygon(50% 50%, 30% 100%, 70% 100%); }
+.dir-left  { clip-path: polygon(50% 50%, 0% 30%, 0% 70%); }
+
+/* ---------------- Weapon loadout slots (gap #8) ---------------- */
+.weapon-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 6px;
+  align-items: flex-end;
+}
+
+.weapon-slot {
+  display: flex;
+  gap: 6px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #777;
+  background: rgba(0,0,0,0.35);
+  padding: 2px 6px;
+}
+
+.weapon-slot-num { color: #555; }
+
+.weapon-slot.active {
+  color: var(--accent);
+  background: rgba(255,177,0,0.12);
+  border-right: 2px solid var(--accent);
+}
+.weapon-slot.active .weapon-slot-num { color: var(--accent); }
+
+.weapon-slot.empty { color: #444; }
+.weapon-slot.empty .weapon-slot-num { color: #3a3a3a; }
+
+/* ---------------- Reload progress bar (gap #10) ---------------- */
+.reload-bar {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, 22px);
+  width: 90px;
+  height: 5px;
+  background: rgba(0,0,0,0.5);
+  border: 1px solid var(--line);
+}
+
+.reload-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  transition: width 0.05s linear;
+}
+
+/* ---------------- Reduced motion (gap #14) ---------------- */
+@media (prefers-reduced-motion: reduce) {
+  .nuke-flash.show { transition: opacity 0.3s ease; opacity: 0.25; }
+  .new-highscore, .reload-indicator, .rotate-prompt .rotate-icon { animation: none; }
+  .dir-wedge.show { animation: none; opacity: 0.4; }
+  .damage-flash.show { transition: opacity 0.15s ease; }
+  .btn, .level-card { transition: none; }
+}
+
+/* Landscape phones: the 5-slot HUD readout is redundant with the always-
+   visible touch weapon buttons and doesn't fit the shrunk vertical space -
+   placed after the general .weapon-slots rule above so it actually wins
+   the cascade (same selector specificity, source order decides). */
+@media (max-height: 500px) {
+  .weapon-slots { display: none; }
 }

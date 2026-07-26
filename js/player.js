@@ -41,18 +41,32 @@ export class Player {
     this.analogForward = 0; // -1..1, set by touch joystick
     this.analogStrafe = 0; // -1..1, set by touch joystick
 
+    this.sensitivity = 0.0022;
+    this.invertY = false;
+
     this._onMouseMove = this._onMouseMove.bind(this);
     this._onKeyDown = this._onKeyDown.bind(this);
     this._onKeyUp = this._onKeyUp.bind(this);
     this._onPointerLockChange = this._onPointerLockChange.bind(this);
+    this._onPointerLockError = this._onPointerLockError.bind(this);
 
     document.addEventListener("keydown", this._onKeyDown);
     document.addEventListener("keyup", this._onKeyUp);
     document.addEventListener("pointerlockchange", this._onPointerLockChange);
+    document.addEventListener("pointerlockerror", this._onPointerLockError);
   }
 
   requestLock() {
     this.domElement.requestPointerLock();
+  }
+
+  // Browsers (Chrome in particular) enforce a short cooldown after an
+  // Escape-triggered exit during which a new requestPointerLock() silently
+  // fails - no pointerlockchange fires, so without this the player is left
+  // with dead mouse look and no explanation.
+  _onPointerLockError() {
+    this.locked = false;
+    if (this.onLockError) this.onLockError();
   }
 
   exitLock() {
@@ -75,9 +89,9 @@ export class Player {
   }
 
   // Public entry point for touch-drag look (no real movementX/Y available on touch).
-  lookBy(dx, dy, sensitivity = 0.0022) {
+  lookBy(dx, dy, sensitivity = this.sensitivity) {
     this.yaw -= dx * sensitivity;
-    this.pitch -= dy * sensitivity;
+    this.pitch -= dy * sensitivity * (this.invertY ? -1 : 1);
     this.pitch = clamp(this.pitch, -Math.PI / 2 + 0.05, Math.PI / 2 - 0.05);
   }
 
@@ -95,12 +109,12 @@ export class Player {
     this.keys.delete(e.code);
   }
 
-  takeDamage(amount) {
+  takeDamage(amount, sourcePos) {
     if (!this.alive) return;
     this.timeSinceDamage = 0;
     this.health = clamp(this.health - amount, 0, this.maxHealth);
     if (this.health <= 0) this.alive = false;
-    if (this.onDamage) this.onDamage(amount);
+    if (this.onDamage) this.onDamage(amount, sourcePos);
   }
 
   heal(amount) {

@@ -30,17 +30,31 @@
   <p>Rotate your device to landscape to play</p>
 </div>
 
+<!-- ============ LOAD ERROR (renderer/CDN failed) ============ -->
+<div id="load-error" class="screen hidden">
+  <div class="menu-panel">
+    <h2 class="panel-title title-danger">Couldn't Load</h2>
+    <p class="panel-copy">The 3D renderer failed to load — this usually means the network blocked unpkg.com, or the connection dropped. Check your connection and reload the page.</p>
+    <div class="menu-actions">
+      <button class="btn btn-primary" onclick="location.reload()">Reload</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ MAIN MENU ============ -->
-<section id="screen-menu" class="screen">
+<section id="screen-menu" class="screen loading">
   <img class="menu-hero-art" src="assets/sprites/aman_hero_portrait.png" alt="" aria-hidden="true">
   <div class="menu-panel">
     <h1 class="title">VOXEL<span class="title-accent">OPS</span></h1>
     <p class="subtitle">pixelated 3D wave-survival shooter</p>
 
+    <div id="menu-loading-note" class="menu-loading-note">Loading renderer…</div>
+
     <div class="menu-actions">
-      <button id="btn-play" class="btn btn-primary">Start Mission</button>
-      <button id="btn-scores" class="btn">High Scores</button>
-      <button id="btn-howto" class="btn">Controls</button>
+      <button id="btn-play" class="btn btn-primary" disabled>Start Mission</button>
+      <button id="btn-scores" class="btn" disabled>High Scores</button>
+      <button id="btn-howto" class="btn" disabled>Controls</button>
+      <button id="btn-settings" class="btn" disabled>Settings</button>
     </div>
 
     <p class="menu-footnote">Plays with mouse + keyboard, or touch controls on phone/tablet.</p>
@@ -49,24 +63,37 @@
 
 <!-- ============ LEVEL SELECT ============ -->
 <section id="screen-levels" class="screen hidden">
-  <div class="menu-panel">
+  <div class="menu-panel menu-panel-wide">
     <h2 class="panel-title">Choose Deployment</h2>
 
     <div class="difficulty-row">
       <span class="difficulty-label">Difficulty</span>
       <div class="difficulty-options">
         <button class="btn diff-btn" data-difficulty="easy">Easy</button>
-        <button class="btn btn-primary diff-btn" data-difficulty="normal">Normal</button>
+        <button class="btn diff-btn selected" data-difficulty="normal">Normal</button>
         <button class="btn diff-btn" data-difficulty="hard">Hard</button>
       </div>
     </div>
 
-    <div class="menu-actions">
-      <button class="btn btn-primary level-btn" data-level="compound">Compound</button>
-      <button class="btn level-btn" data-level="jungle">Jungle</button>
-      <button class="btn level-btn" data-level="beach">Beach Assault</button>
+    <div class="level-grid">
+      <button class="level-card selected" data-level="compound">
+        <span class="level-card-title">Compound</span>
+        <span class="level-card-desc">Crates for cover — close-quarters</span>
+      </button>
+      <button class="level-card" data-level="jungle">
+        <span class="level-card-title">Jungle</span>
+        <span class="level-card-desc">Trees &amp; rocks — long sightlines</span>
+      </button>
+      <button class="level-card" data-level="beach">
+        <span class="level-card-title">Beach Assault</span>
+        <span class="level-card-desc">Palms &amp; open water edge</span>
+      </button>
     </div>
-    <button class="btn back-btn" data-back="menu">Back</button>
+
+    <div class="menu-actions">
+      <button id="btn-deploy" class="btn btn-primary">Deploy</button>
+      <button class="btn back-btn" data-back="menu">Back</button>
+    </div>
   </div>
 </section>
 
@@ -94,6 +121,28 @@
   </div>
 </section>
 
+<!-- ============ SETTINGS ============ -->
+<section id="screen-settings" class="screen hidden">
+  <div class="menu-panel">
+    <h2 class="panel-title">Settings</h2>
+    <div class="settings-list">
+      <label class="settings-row">
+        <span>Mouse sensitivity</span>
+        <input type="range" id="setting-sensitivity" min="1" max="10" step="1" value="5">
+      </label>
+      <label class="settings-row">
+        <span>Sound volume</span>
+        <input type="range" id="setting-volume" min="0" max="10" step="1" value="10">
+      </label>
+      <label class="settings-row settings-row-checkbox">
+        <span>Invert look Y-axis</span>
+        <input type="checkbox" id="setting-invert-y">
+      </label>
+    </div>
+    <button class="btn btn-primary back-btn" data-back="menu">Back</button>
+  </div>
+</section>
+
 <!-- ============ HIGH SCORES ============ -->
 <section id="screen-scores" class="screen hidden">
   <div class="menu-panel">
@@ -101,7 +150,10 @@
     <ol id="score-list" class="score-list">
       <li class="score-empty">No runs yet — go make history.</li>
     </ol>
-    <button class="btn btn-primary back-btn" data-back="menu">Back</button>
+    <div class="menu-actions">
+      <button class="btn btn-primary back-btn" data-back="menu">Back</button>
+      <button id="btn-clear-scores" class="btn btn-danger-outline">Clear Scores</button>
+    </div>
   </div>
 </section>
 
@@ -111,6 +163,7 @@
     <h2 class="panel-title">Paused</h2>
     <div class="menu-actions">
       <button id="btn-resume" class="btn btn-primary">Resume</button>
+      <button id="btn-pause-howto" class="btn">Controls</button>
       <button id="btn-quit" class="btn">Quit to Menu</button>
     </div>
   </div>
@@ -141,16 +194,33 @@
     </div>
     <div class="hud-top-text">
       <div class="hud-wave">WAVE <span id="hud-wave-num">1</span></div>
+      <div class="hud-hostiles">HOSTILES <span id="hud-enemies-num">0</span></div>
       <div class="hud-score">SCORE <span id="hud-score-num">0</span></div>
     </div>
   </div>
 
   <canvas id="minimap" class="minimap hidden" width="160" height="160"></canvas>
 
+  <!-- Directional damage indicator: one wedge lights up toward the attacker,
+       relative to where the player is currently facing. -->
+  <div id="damage-direction" class="damage-direction">
+    <div class="dir-wedge dir-front"></div>
+    <div class="dir-wedge dir-right"></div>
+    <div class="dir-wedge dir-back"></div>
+    <div class="dir-wedge dir-left"></div>
+  </div>
+
+  <div id="wave-banner" class="wave-banner hidden">
+    <div id="wave-banner-title" class="wave-banner-title"></div>
+    <div id="wave-banner-sub" class="wave-banner-sub"></div>
+  </div>
+
   <div id="hitmarker" class="hitmarker"></div>
   <div class="crosshair">
     <span></span><span></span><span></span><span></span>
   </div>
+
+  <div id="reload-bar" class="reload-bar hidden"><div id="reload-bar-fill" class="reload-bar-fill"></div></div>
 
   <div id="scope-overlay" class="scope-overlay hidden"></div>
   <div id="toast-container" class="toast-container"></div>
@@ -168,13 +238,20 @@
         <div class="hud-grenades">GRENADES <span id="grenade-count">3</span></div>
         <div id="nuke-icon" class="nuke-icon" title="Nuke (N)">☢<span id="nuke-count">3</span></div>
       </div>
+      <div id="weapon-slots" class="weapon-slots">
+        <div class="weapon-slot" data-slot="0"><span class="weapon-slot-num">1</span><span class="weapon-slot-name">Pistol</span></div>
+        <div class="weapon-slot" data-slot="1"><span class="weapon-slot-num">2</span><span class="weapon-slot-name">Rifle</span></div>
+        <div class="weapon-slot" data-slot="2"><span class="weapon-slot-num">3</span><span class="weapon-slot-name">Shotgun</span></div>
+        <div class="weapon-slot" data-slot="3"><span class="weapon-slot-num">4</span><span class="weapon-slot-name">Sniper</span></div>
+        <div class="weapon-slot" data-slot="4"><span class="weapon-slot-num">5</span><span class="weapon-slot-name">Knife</span></div>
+      </div>
       <div id="weapon-name" class="weapon-name">PISTOL</div>
       <div id="weapon-ammo" class="weapon-ammo">— / —</div>
     </div>
   </div>
 
   <div id="reload-indicator" class="reload-indicator hidden">RELOADING…</div>
-  <div id="lock-hint" class="lock-hint">Click to aim</div>
+  <div id="lock-hint" class="lock-hint">Click to capture mouse</div>
 
   <!-- ============ MOBILE TOUCH CONTROLS ============ -->
   <div id="mobile-controls" class="mobile-controls">
@@ -213,5 +290,16 @@
 </div>
 
 <script type="module" src="js/main.js"></script>
+<script>
+  // Fallback if the ES module (or the Three.js CDN it imports) fails to load
+  // at all - e.g. unpkg.com blocked by a network policy. Without this the
+  // game is a permanently blank/frozen menu with no explanation.
+  window.addEventListener("error", (e) => {
+    if (e.target && e.target.tagName === "SCRIPT") {
+      document.getElementById("load-error")?.classList.remove("hidden");
+      document.getElementById("screen-menu")?.classList.add("hidden");
+    }
+  }, true);
+</script>
 </body>
 </html>

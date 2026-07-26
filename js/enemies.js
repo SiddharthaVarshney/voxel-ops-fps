@@ -508,15 +508,15 @@ export class EnemyManager {
 
     for (const enemy of this.enemies) {
       enemy.update(dt, playerPos, colliders, blockerMeshes, {
-        onMeleeAttack: (dmg) => callbacks?.onPlayerHit?.(dmg),
+        onMeleeAttack: (dmg) => callbacks?.onPlayerHit?.(dmg, enemy.position),
         onRangedAttack: (dmg, from, to, suppress) => {
           this._addTracer(from, to);
           if (dmg > 0) {
-            callbacks?.onPlayerHit?.(dmg);
+            callbacks?.onPlayerHit?.(dmg, enemy.position);
             if (suppress) callbacks?.onSuppressed?.();
           }
         },
-        onFlameTick: (dmg) => callbacks?.onPlayerHit?.(dmg),
+        onFlameTick: (dmg) => callbacks?.onPlayerHit?.(dmg, enemy.position),
       });
     }
 
